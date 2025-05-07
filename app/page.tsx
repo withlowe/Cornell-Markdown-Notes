@@ -27,14 +27,40 @@ React is a JavaScript library for building user interfaces. It was developed by 
 # Key Concepts
 React uses a virtual DOM to improve performance. It also uses a component-based architecture, which allows for reusable UI elements.
 
+Here's a simple list of React concepts:
+- Components
+- Props
+- State
+- JSX
+- Virtual DOM
+
+## Component Types
+There are two main types of components:
+1. Function Components
+2. Class Components
+
 # JSX
 JSX is a syntax extension for JavaScript that looks similar to HTML. It's used with React to describe what the UI should look like.
+
+\`\`\`jsx
+function Welcome() {
+  return <h1>Hello, world!</h1>;
+}
+\`\`\`
 
 # Components
 Components are the building blocks of React applications. They are reusable pieces of code that return React elements describing what should appear on the screen.
 
+| Component Type | Description | Use Case |
+| -------------- | ----------- | -------- |
+| Function | Simple, stateless | UI elements |
+| Class | Complex, stateful | Container components |
+| HOC | Reuse component logic | Cross-cutting concerns |
+
 # Props
 Props are inputs to components. They are data passed from a parent component to a child component.
+
+> Props are read-only and should not be modified within a component.
 
 # State
 State is data that changes over time. When state changes, React re-renders the component.`,
@@ -144,6 +170,8 @@ State is data that changes over time. When state changes, React re-renders the c
             />
             <div className="mt-4 text-sm text-muted-foreground">
               Use markdown headings (#) for key points. Content under each heading will appear as notes.
+              <br />
+              Supports Markdown features: **bold**, *italic*, lists, tables, code blocks, and more.
             </div>
           </CardContent>
         </Card>
