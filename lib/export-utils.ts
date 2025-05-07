@@ -1,6 +1,4 @@
 import { jsPDF } from "jspdf"
-import { marked } from "marked"
-import DOMPurify from "dompurify"
 
 interface Section {
   heading: string
@@ -46,32 +44,31 @@ function parseMarkdown(markdown: string): Section[] {
   return sections
 }
 
-// Convert markdown to plain text with basic formatting
-function markdownToPlainText(markdown: string): string {
-  // First convert markdown to HTML
-  const html = marked.parse(markdown)
+// Simple function to clean markdown for PDF display
+function cleanMarkdown(text: string): string {
+  // Remove code blocks
+  text = text.replace(/```[\s\S]*?```/g, "[Code Block]")
 
-  // Sanitize HTML (security measure)
-  const sanitizedHtml = typeof window !== "undefined" ? DOMPurify.sanitize(html) : html
+  // Convert bullet points
+  text = text.replace(/^\s*-\s+/gm, "• ")
 
-  // Create a temporary element to hold the HTML
-  const tempDiv =
-    typeof document !== "undefined" ? document.createElement("div") : { innerHTML: sanitizedHtml, textContent: "" }
+  // Convert numbered lists
+  text = text.replace(/^\s*\d+\.\s+/gm, (match) => {
+    return match // Keep the numbering
+  })
 
-  if (typeof document !== "undefined") {
-    tempDiv.innerHTML = sanitizedHtml
-  }
+  // Convert bold
+  text = text.replace(/\*\*(.*?)\*\*/g, "$1")
 
-  // Extract text content with some basic formatting
-  let text = tempDiv.textContent || ""
+  // Convert italic
+  text = text.replace(/\*(.*?)\*/g, "$1")
 
-  // Replace some common HTML elements with plain text equivalents
-  text = text
-    .replace(/<li>/g, "• ")
-    .replace(/<\/li>/g, "\n")
-    .replace(/<br>/g, "\n")
-    .replace(/<p>/g, "")
-    .replace(/<\/p>/g, "\n\n")
+  // Remove table formatting but keep content
+  text = text.replace(/\|(.+)\|/g, "$1")
+  text = text.replace(/^[\s\-|]+$/gm, "")
+
+  // Convert blockquotes
+  text = text.replace(/^\s*>\s+/gm, "")
 
   return text
 }
@@ -133,11 +130,11 @@ export async function exportToPdf(title: string, markdown: string): Promise<void
       y += 10
     }
 
-    // Convert markdown content to plain text with basic formatting
-    const formattedContent = markdownToPlainText(section.content)
+    // Clean the content for PDF display
+    const cleanedContent = cleanMarkdown(section.content)
 
     // Calculate content height
-    const contentLines = doc.splitTextToSize(formattedContent, contentWidth - 10)
+    const contentLines = doc.splitTextToSize(cleanedContent, contentWidth - 10)
     const sectionHeight = Math.max(lineHeight * 2, contentLines.length * lineHeight)
 
     // Draw section border

@@ -100,30 +100,46 @@ State is data that changes over time. When state changes, React re-renders the c
   }
 
   const handleExportPdf = async () => {
-    await exportToPdf(title, markdown)
+    try {
+      await exportToPdf(title, markdown)
 
-    toast({
-      title: "PDF exported",
-      description: "Your note has been exported as a PDF",
-    })
+      toast({
+        title: "PDF exported",
+        description: "Your note has been exported as a PDF",
+      })
+    } catch (error) {
+      console.error("PDF export error:", error)
+
+      toast({
+        title: "PDF export failed",
+        description: "There was an error exporting your note to PDF",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
     <main className="container mx-auto p-4 max-w-6xl">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => router.push("/library")}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="button-black-outline"
+            onClick={() => router.push("/library")}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-3xl font-bold">Notes</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => router.push("/library")}>
+          <Button variant="outline" className="button-black-outline" onClick={() => router.push("/library")}>
             <BookOpen className="mr-2 h-4 w-4" />
             Library
           </Button>
           <Button
             variant="outline"
+            className="button-black-outline"
             onClick={() => {
               setId(null)
               setTitle("Untitled Note")
@@ -185,11 +201,11 @@ State is data that changes over time. When state changes, React re-renders the c
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={handleExportPdf}>
+        <Button variant="outline" className="button-black-outline" onClick={handleExportPdf}>
           <FileDown className="mr-2 h-4 w-4" />
           Export PDF
         </Button>
-        <Button onClick={handleSave}>
+        <Button className="button-black" onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" />
           Save to Library
         </Button>

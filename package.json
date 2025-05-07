@@ -60,9 +60,7 @@
     "zod": "^3.24.1",
     "react-markdown": "latest",
     "remark-gfm": "latest",
-    "jspdf": "latest",
-    "marked": "latest",
-    "dompurify": "latest"
+    "jspdf": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

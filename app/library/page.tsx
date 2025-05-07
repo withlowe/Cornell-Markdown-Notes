@@ -160,7 +160,7 @@ export default function LibraryPage() {
         </div>
 
         <div className="mt-auto p-4 border-t">
-          <Button className="w-full" onClick={() => router.push("/")}>
+          <Button className="w-full button-black" onClick={() => router.push("/")}>
             <PlusCircle className="mr-2 h-4 w-4" />
             New Note
           </Button>
@@ -176,10 +176,10 @@ export default function LibraryPage() {
             Notes
           </Link>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push("/")}>
+            <Button variant="outline" size="sm" className="button-black-outline" onClick={() => router.push("/")}>
               <Home className="h-4 w-4" />
             </Button>
-            <Button size="sm" onClick={() => router.push("/")}>
+            <Button size="sm" className="button-black" onClick={() => router.push("/")}>
               <PlusCircle className="h-4 w-4" />
             </Button>
           </div>
@@ -251,7 +251,7 @@ export default function LibraryPage() {
                   ? "Try adjusting your search or filters"
                   : "Create your first note to get started"}
               </p>
-              <Button onClick={() => router.push("/")}>
+              <Button className="button-black" onClick={() => router.push("/")}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create New Note
               </Button>
@@ -277,7 +277,11 @@ export default function LibraryPage() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => router.push(`/?id=${activeDocument.id}`)}>
+                <Button
+                  variant="outline"
+                  className="button-black-outline"
+                  onClick={() => router.push(`/?id=${activeDocument.id}`)}
+                >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
@@ -317,7 +321,7 @@ export default function LibraryPage() {
                   ? "Select a document from the sidebar to view"
                   : "Create your first note to get started"}
               </p>
-              <Button onClick={() => router.push("/")}>
+              <Button className="button-black" onClick={() => router.push("/")}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create New Note
               </Button>
