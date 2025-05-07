@@ -1,4 +1,6 @@
 import { jsPDF } from "jspdf"
+import { marked } from "marked"
+import DOMPurify from "dompurify"
 
 interface Section {
   heading: string
@@ -42,6 +44,36 @@ function parseMarkdown(markdown: string): Section[] {
   }
 
   return sections
+}
+
+// Convert markdown to plain text with basic formatting
+function markdownToPlainText(markdown: string): string {
+  // First convert markdown to HTML
+  const html = marked.parse(markdown)
+
+  // Sanitize HTML (security measure)
+  const sanitizedHtml = typeof window !== "undefined" ? DOMPurify.sanitize(html) : html
+
+  // Create a temporary element to hold the HTML
+  const tempDiv =
+    typeof document !== "undefined" ? document.createElement("div") : { innerHTML: sanitizedHtml, textContent: "" }
+
+  if (typeof document !== "undefined") {
+    tempDiv.innerHTML = sanitizedHtml
+  }
+
+  // Extract text content with some basic formatting
+  let text = tempDiv.textContent || ""
+
+  // Replace some common HTML elements with plain text equivalents
+  text = text
+    .replace(/<li>/g, "• ")
+    .replace(/<\/li>/g, "\n")
+    .replace(/<br>/g, "\n")
+    .replace(/<p>/g, "")
+    .replace(/<\/p>/g, "\n\n")
+
+  return text
 }
 
 // Export to PDF
@@ -101,10 +133,14 @@ export async function exportToPdf(title: string, markdown: string): Promise<void
       y += 10
     }
 
-    // Draw section border
-    const contentLines = doc.splitTextToSize(section.content, contentWidth - 10)
+    // Convert markdown content to plain text with basic formatting
+    const formattedContent = markdownToPlainText(section.content)
+
+    // Calculate content height
+    const contentLines = doc.splitTextToSize(formattedContent, contentWidth - 10)
     const sectionHeight = Math.max(lineHeight * 2, contentLines.length * lineHeight)
 
+    // Draw section border
     doc.setDrawColor(200, 200, 200)
     doc.rect(margin, y, keyPointsWidth, sectionHeight)
     doc.rect(margin + keyPointsWidth, y, contentWidth, sectionHeight)
