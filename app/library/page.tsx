@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,10 +10,21 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { getAllDocuments, deleteDocument, type DocumentData } from "@/lib/storage-utils"
-import { PlusCircle, Search, Trash2, Edit, Tag, BookOpen, FileText, Home } from "lucide-react"
+import { exportAllToZip, importMarkdownFiles } from "@/lib/export-import-utils"
+import { PlusCircle, Search, Trash2, Edit, Tag, BookOpen, FileText, Home, Download, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { CornellNotes } from "@/components/cornell-notes"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ChevronDown, X } from "lucide-react"
 
 export default function LibraryPage() {
   const router = useRouter()
@@ -21,6 +34,9 @@ export default function LibraryPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [allTags, setAllTags] = useState<string[]>([])
   const [activeDocument, setActiveDocument] = useState<DocumentData | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     loadDocuments()
@@ -76,11 +92,6 @@ export default function LibraryPage() {
     return matchesSearch && matchesTags
   })
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString()
-  }
-
-  // Extract headings from markdown content
   const extractHeadings = (content: string): string[] => {
     const headings: string[] = []
     const lines = content.split("\n")
@@ -94,15 +105,80 @@ export default function LibraryPage() {
     return headings
   }
 
+  const handleExportAll = async () => {
+    if (documents.length === 0) {
+      toast({
+        title: "No documents to export",
+        description: "Create some notes first before exporting",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      await exportAllToZip()
+      toast({
+        title: "Export successful",
+        description: `Exported ${documents.length} notes as markdown files`,
+      })
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImportFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    setIsImporting(true)
+    try {
+      const count = await importMarkdownFiles(files)
+      loadDocuments()
+      toast({
+        title: "Import successful",
+        description: `Imported ${count} markdown files`,
+      })
+    } catch (error) {
+      toast({
+        title: "Import failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsImporting(false)
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-white text-black">
       {/* Documentation-style sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-gray-200 min-h-screen">
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 flex flex-col gap-2">
           <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
             <BookOpen className="h-5 w-5" />
             Notes
           </Link>
+
+          {/* Moved Add Note button to top */}
+          <Button className="w-full bg-black text-white hover:bg-gray-800" onClick={() => router.push("/")}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Note
+          </Button>
         </div>
 
         <div className="p-4">
@@ -117,31 +193,60 @@ export default function LibraryPage() {
           </div>
 
           <div className="mb-6">
-            <div className="flex items-center gap-2 font-medium mb-2">
-              <Tag className="h-4 w-4" />
-              Filter by Tags
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {allTags.length > 0 ? (
-                allTags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant={selectedTags.includes(tag) ? "default" : "outline"}
-                    className={cn(
-                      "cursor-pointer uppercase",
-                      selectedTags.includes(tag)
-                        ? "bg-black text-white hover:bg-gray-800"
-                        : "bg-white text-black border-gray-300 hover:bg-gray-100",
-                    )}
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag}
-                  </Badge>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500">No tags found</div>
+            <div className="flex items-center justify-between font-medium mb-2">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Filter by Tags
+              </div>
+              {selectedTags.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedTags([])} className="h-6 px-2 text-xs">
+                  Clear
+                </Button>
               )}
             </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between border-gray-300 text-black hover:bg-gray-100"
+                >
+                  {selectedTags.length > 0
+                    ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
+                    : "Select tags"}
+                  <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 max-h-80 overflow-auto">
+                <DropdownMenuLabel>Available Tags</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {allTags.length > 0 ? (
+                  allTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag}
+                      checked={selectedTags.includes(tag)}
+                      onCheckedChange={() => toggleTag(tag)}
+                      className="uppercase"
+                    >
+                      {tag}
+                    </DropdownMenuCheckboxItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {selectedTags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedTags.map((tag) => (
+                  <Badge key={tag} variant="default" className="bg-black text-white hover:bg-gray-800 uppercase">
+                    {tag}
+                    <X className="ml-1 h-3 w-3 cursor-pointer" onClick={() => toggleTag(tag)} />
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -165,11 +270,35 @@ export default function LibraryPage() {
           </div>
         </div>
 
-        <div className="mt-auto p-4 border-t border-gray-200">
-          <Button className="w-full bg-black text-white hover:bg-gray-800" onClick={() => router.push("/")}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Note
-          </Button>
+        <div className="mt-auto p-4 border-t border-gray-200 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
+              onClick={handleExportAll}
+              disabled={isExporting}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export All
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
+              onClick={handleImportClick}
+              disabled={isImporting}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportFiles}
+              accept=".md"
+              multiple
+              className="hidden"
+            />
+          </div>
         </div>
       </aside>
 
@@ -208,32 +337,85 @@ export default function LibraryPage() {
             />
           </div>
 
-          <div className="mb-2">
-            <div className="flex items-center gap-2 font-medium mb-2">
-              <Tag className="h-4 w-4" />
-              Filter by Tags
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {allTags.length > 0 ? (
-                allTags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant={selectedTags.includes(tag) ? "default" : "outline"}
-                    className={cn(
-                      "cursor-pointer uppercase",
-                      selectedTags.includes(tag)
-                        ? "bg-black text-white hover:bg-gray-800"
-                        : "bg-white text-black border-gray-300 hover:bg-gray-100",
-                    )}
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag}
-                  </Badge>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500">No tags found</div>
+          <div className="mb-4">
+            <div className="flex items-center justify-between font-medium mb-2">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Filter by Tags
+              </div>
+              {selectedTags.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedTags([])} className="h-6 px-2 text-xs">
+                  Clear
+                </Button>
               )}
             </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between border-gray-300 text-black hover:bg-gray-100"
+                >
+                  {selectedTags.length > 0
+                    ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
+                    : "Select tags"}
+                  <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 max-h-80 overflow-auto">
+                <DropdownMenuLabel>Available Tags</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {allTags.length > 0 ? (
+                  allTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag}
+                      checked={selectedTags.includes(tag)}
+                      onCheckedChange={() => toggleTag(tag)}
+                      className="uppercase"
+                    >
+                      {tag}
+                    </DropdownMenuCheckboxItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {selectedTags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedTags.map((tag) => (
+                  <Badge key={tag} variant="default" className="bg-black text-white hover:bg-gray-800 uppercase">
+                    {tag}
+                    <X className="ml-1 h-3 w-3 cursor-pointer" onClick={() => toggleTag(tag)} />
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mobile import/export buttons */}
+          <div className="flex gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
+              onClick={handleExportAll}
+              disabled={isExporting}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export All
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
+              onClick={handleImportClick}
+              disabled={isImporting}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import
+            </Button>
           </div>
         </div>
 
@@ -249,7 +431,6 @@ export default function LibraryPage() {
                 >
                   <div className="font-medium mb-1">{doc.title}</div>
                   {doc.summary && <div className="text-sm text-gray-600 mb-2">{doc.summary}</div>}
-                  <div className="text-sm text-gray-500 mb-2">Created: {formatDate(doc.createdAt)}</div>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {doc.tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs uppercase bg-gray-100 text-gray-800">
@@ -282,7 +463,6 @@ export default function LibraryPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 className="text-3xl font-bold">{activeDocument.title}</h1>
-                <div className="text-sm text-gray-500 mt-1">Created: {formatDate(activeDocument.createdAt)}</div>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {activeDocument.tags.map((tag) => (
                     <Badge key={tag} variant="secondary" className="uppercase bg-gray-100 text-gray-800">

@@ -5,6 +5,25 @@ interface Section {
   content: string
 }
 
+// Helper function to download a blob
+function downloadBlob(blob: Blob, filename: string) {
+  // Create a URL for the blob
+  const url = URL.createObjectURL(blob)
+
+  // Create a temporary link element
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+
+  // Append to the document, click it, and remove it
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+
+  // Release the URL object
+  setTimeout(() => URL.revokeObjectURL(url), 100)
+}
+
 // Parse markdown into Cornell note sections
 function parseMarkdown(markdown: string): Section[] {
   const lines = markdown.split("\n")
@@ -44,293 +63,6 @@ function parseMarkdown(markdown: string): Section[] {
   return sections
 }
 
-// Render a table in PDF
-function renderTable(doc: jsPDF, tableText: string[], x: number, y: number, maxWidth: number): number {
-  // Parse table rows and columns
-  const tableRows = tableText.filter((line) => line.trim().startsWith("|") && line.trim().endsWith("|"))
-
-  if (tableRows.length < 2) return y // Not enough rows for a table
-
-  // Extract header row and separator row
-  const headerRow = tableRows[0]
-  const separatorRow = tableRows[1]
-  const contentRows = tableRows.slice(2)
-
-  // Parse columns from header row
-  const columns = headerRow
-    .split("|")
-    .slice(1, -1)
-    .map((col) => col.trim())
-
-  // Calculate column widths (proportional to content)
-  const totalWidth = maxWidth - 10 // Leave some margin
-  const columnWidths = columns.map((col) => {
-    // Base width on column content length
-    return Math.max(doc.getTextWidth(col), 20) // Minimum width of 20
-  })
-
-  // Normalize column widths to fit total width
-  const totalCalculatedWidth = columnWidths.reduce((sum, width) => sum + width, 0)
-  const widthRatio = totalWidth / totalCalculatedWidth
-  const normalizedWidths = columnWidths.map((width) => width * widthRatio)
-
-  // Set up table styling
-  const cellPadding = 2
-  const rowHeight = 8
-  let currentY = y
-
-  // Draw table header
-  doc.setFontSize(9)
-  doc.setFont(undefined, "bold")
-
-  let currentX = x
-  columns.forEach((col, i) => {
-    // Draw header cell
-    doc.text(col, currentX + cellPadding, currentY + rowHeight - cellPadding)
-    currentX += normalizedWidths[i]
-  })
-
-  doc.setFont(undefined, "normal")
-  currentY += rowHeight
-
-  // Draw header separator
-  doc.setDrawColor(200, 200, 200)
-  doc.line(x, currentY, x + totalWidth, currentY)
-
-  // Draw content rows
-  contentRows.forEach((row) => {
-    const cells = row
-      .split("|")
-      .slice(1, -1)
-      .map((cell) => cell.trim())
-    currentX = x
-
-    cells.forEach((cell, i) => {
-      if (i < normalizedWidths.length) {
-        // Draw cell content
-        const cellLines = doc.splitTextToSize(cell, normalizedWidths[i] - cellPadding * 2)
-        const cellHeight = cellLines.length * rowHeight
-
-        doc.text(cellLines, currentX + cellPadding, currentY + rowHeight - cellPadding)
-        currentX += normalizedWidths[i]
-      }
-    })
-
-    currentY += rowHeight
-
-    // Draw row separator
-    doc.setDrawColor(230, 230, 230)
-    doc.line(x, currentY, x + totalWidth, currentY)
-  })
-
-  return currentY + 5 // Return the new Y position after the table
-}
-
-// Render a list in PDF
-function renderList(
-  doc: jsPDF,
-  listItems: string[],
-  x: number,
-  y: number,
-  maxWidth: number,
-  isNumbered: boolean,
-): number {
-  let currentY = y
-  const lineHeight = 7
-  const indent = 5
-
-  listItems.forEach((item, index) => {
-    // Create bullet or number
-    const marker = isNumbered ? `${index + 1}.` : "•"
-    const markerWidth = doc.getTextWidth(isNumbered ? `${marker} ` : `${marker}  `)
-
-    // Draw the marker
-    doc.text(marker, x, currentY)
-
-    // Draw the list item text with wrapping
-    const itemText = item.trim()
-    const textLines = doc.splitTextToSize(itemText, maxWidth - markerWidth - indent)
-
-    doc.text(textLines, x + markerWidth + indent, currentY)
-
-    // Move to next item
-    currentY += textLines.length * lineHeight
-  })
-
-  return currentY
-}
-
-// Render a code block in PDF
-function renderCodeBlock(doc: jsPDF, codeLines: string[], x: number, y: number, maxWidth: number): number {
-  const lineHeight = 6
-  let currentY = y
-
-  // Draw code block background
-  const blockHeight = codeLines.length * lineHeight + 6
-  doc.setDrawColor(230, 230, 230)
-  doc.rect(x, y, maxWidth, blockHeight)
-
-  // Set monospace font for code
-  doc.setFontSize(8)
-
-  // Draw each line of code
-  codeLines.forEach((line, index) => {
-    doc.text(line, x + 3, currentY + 5)
-    currentY += lineHeight
-  })
-
-  return y + blockHeight + 3
-}
-
-// Render a blockquote in PDF
-function renderBlockquote(doc: jsPDF, quoteLines: string[], x: number, y: number, maxWidth: number): number {
-  const lineHeight = 7
-  let currentY = y
-
-  // Draw quote bar
-  doc.setDrawColor(200, 200, 200)
-  doc.setLineWidth(1)
-  doc.line(x, y, x, y + quoteLines.length * lineHeight)
-  doc.setLineWidth(0.1)
-
-  // Set quote text style
-  doc.setTextColor(100, 100, 100)
-
-  // Draw each line of the quote
-  quoteLines.forEach((line) => {
-    const textLines = doc.splitTextToSize(line.trim(), maxWidth - 5)
-    doc.text(textLines, x + 5, currentY)
-    currentY += textLines.length * lineHeight
-  })
-
-  // Reset text color
-  doc.setTextColor(0, 0, 0)
-
-  return currentY
-}
-
-// Process markdown content for PDF rendering
-function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): number {
-  const lines = content.split("\n")
-  let currentY = y
-  const lineHeight = 7
-
-  let i = 0
-  while (i < lines.length) {
-    const line = lines[i]
-
-    // Skip empty lines but add spacing
-    if (line.trim() === "") {
-      currentY += lineHeight
-      i++
-      continue
-    }
-
-    // Check for tables
-    if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
-      // Collect all table lines
-      const tableLines = []
-      while (i < lines.length && lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
-        tableLines.push(lines[i])
-        i++
-      }
-
-      currentY = renderTable(doc, tableLines, x, currentY, maxWidth)
-      continue
-    }
-
-    // Check for code blocks
-    if (line.trim().startsWith("```")) {
-      const codeLines = []
-      i++ // Skip the opening \`\`\`
-
-      while (i < lines.length && !lines[i].trim().startsWith("```")) {
-        codeLines.push(lines[i])
-        i++
-      }
-
-      i++ // Skip the closing \`\`\`
-      currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth)
-      continue
-    }
-
-    // Check for blockquotes
-    if (line.trim().startsWith(">")) {
-      const quoteLines = []
-      while (i < lines.length && lines[i].trim().startsWith(">")) {
-        quoteLines.push(lines[i].substring(lines[i].indexOf(">") + 1))
-        i++
-      }
-
-      currentY = renderBlockquote(doc, quoteLines, x, currentY, maxWidth)
-      continue
-    }
-
-    // Check for unordered lists
-    if (line.trim().match(/^[-*]\s/)) {
-      const listItems = []
-      while (i < lines.length && lines[i].trim().match(/^[-*]\s/)) {
-        listItems.push(lines[i].substring(lines[i].indexOf(" ") + 1))
-        i++
-      }
-
-      currentY = renderList(doc, listItems, x, currentY, maxWidth, false)
-      continue
-    }
-
-    // Check for ordered lists
-    if (line.trim().match(/^\d+\.\s/)) {
-      const listItems = []
-      while (i < lines.length && lines[i].trim().match(/^\d+\.\s/)) {
-        listItems.push(lines[i].substring(lines[i].indexOf(".") + 1))
-        i++
-      }
-
-      currentY = renderList(doc, listItems, x, currentY, maxWidth, true)
-      continue
-    }
-
-    // Check for headings (level 2-6)
-    if (line.trim().match(/^#{2,6}\s/)) {
-      const level = line.trim().indexOf(" ")
-      const headingText = line.trim().substring(level + 1)
-
-      const originalSize = doc.getFontSize()
-      doc.setFontSize(12 - (level - 2)) // Size based on heading level
-      doc.setFont(undefined, "bold")
-
-      const textLines = doc.splitTextToSize(headingText, maxWidth)
-      doc.text(textLines, x, currentY)
-
-      doc.setFont(undefined, "normal")
-      doc.setFontSize(originalSize)
-
-      currentY += textLines.length * lineHeight + 2
-      i++
-      continue
-    }
-
-    // Regular paragraph text with basic formatting
-    const textLines = doc.splitTextToSize(line, maxWidth)
-
-    // Handle basic inline formatting
-    let formattedText = line
-
-    // Bold
-    formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, "$1")
-
-    // Italic
-    formattedText = formattedText.replace(/\*(.*?)\*/g, "$1")
-
-    // Render the formatted text
-    doc.text(textLines, x, currentY)
-    currentY += textLines.length * lineHeight
-    i++
-  }
-
-  return currentY
-}
-
 // Export to PDF with improved markdown rendering
 export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
   const sections = parseMarkdown(markdown)
@@ -347,17 +79,17 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
   doc.text(title, 15, 15)
 
   // Add summary if provided
-  let y = 20
+  let y = 25 // Increased spacing after title
   if (summary) {
     doc.setFontSize(10)
     doc.text("Summary:", 15, y)
-    y += 5
+    y += 7 // Increased spacing before summary content
 
     const summaryLines = doc.splitTextToSize(summary, 180)
     doc.text(summaryLines, 15, y)
-    y += summaryLines.length * 5 + 5
+    y += summaryLines.length * 5 + 10 // Increased spacing after summary
   } else {
-    y = 25
+    y = 30 // More spacing if no summary
   }
 
   // Draw the Cornell note structure
@@ -409,18 +141,16 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     // Calculate heading height
     const headingHeight = headingLines.length * 7 + 5
 
-    // Draw content with improved markdown rendering
+    // Draw content with basic text rendering
     doc.setFontSize(10)
-    const contentEndY = renderMarkdownContent(
-      doc,
-      section.content,
-      margin + keyPointsWidth + 5,
-      y + 5,
-      contentWidth - 10,
-    )
+    const contentLines = doc.splitTextToSize(section.content, contentWidth - 10)
+    doc.text(contentLines, margin + keyPointsWidth + 5, y + 5)
+
+    // Calculate content height
+    const contentHeight = contentLines.length * 5
 
     // Calculate section height
-    const sectionHeight = Math.max(headingHeight, contentEndY - y)
+    const sectionHeight = Math.max(headingHeight, contentHeight)
 
     // Draw section with very light borders
     doc.setDrawColor(230, 230, 230) // Extra light gray for borders
@@ -437,6 +167,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     y = startY + sectionHeight + 3
   })
 
-  // Save the PDF
-  doc.save(`${title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+  // Generate the PDF as a blob
+  const pdfBlob = doc.output("blob")
+
+  // Download the PDF
+  downloadBlob(pdfBlob, `${title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
 }

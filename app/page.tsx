@@ -23,48 +23,17 @@ export default function NotesApp() {
   const [tags, setTags] = useState<string[]>([])
   const [markdown, setMarkdown] = useState<string>(
     `# Introduction to React
-React is a JavaScript library for building user interfaces. It was developed by Facebook and is now maintained by Facebook and a community of individual developers and companies.
+React is a JavaScript library for building user interfaces.
 
 # Key Concepts
-React uses a virtual DOM to improve performance. It also uses a component-based architecture, which allows for reusable UI elements.
+React uses a virtual DOM to improve performance.
 
 Here's a simple list of React concepts:
 - Components
 - Props
 - State
 - JSX
-- Virtual DOM
-
-## Component Types
-There are two main types of components:
-1. Function Components
-2. Class Components
-
-# JSX
-JSX is a syntax extension for JavaScript that looks similar to HTML. It's used with React to describe what the UI should look like.
-
-\`\`\`jsx
-function Welcome() {
-  return <h1>Hello, world!</h1>;
-}
-\`\`\`
-
-# Components
-Components are the building blocks of React applications. They are reusable pieces of code that return React elements describing what should appear on the screen.
-
-| Component Type | Description | Use Case |
-| -------------- | ----------- | -------- |
-| Function | Simple, stateless | UI elements |
-| Class | Complex, stateful | Container components |
-| HOC | Reuse component logic | Cross-cutting concerns |
-
-# Props
-Props are inputs to components. They are data passed from a parent component to a child component.
-
-> Props are read-only and should not be modified within a component.
-
-# State
-State is data that changes over time. When state changes, React re-renders the component.`,
+- Virtual DOM`,
   )
 
   // Check if we're editing an existing document
@@ -122,8 +91,8 @@ State is data that changes over time. When state changes, React re-renders the c
   }
 
   return (
-    <main className="container mx-auto p-4 max-w-6xl">
-      <div className="flex justify-between items-center mb-6">
+    <main className="container mx-auto p-4 max-w-6xl flex flex-col min-h-screen">
+      <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -157,7 +126,7 @@ State is data that changes over time. When state changes, React re-renders the c
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 mb-6">
+      <div className="grid grid-cols-1 gap-4 mb-4">
         <Card>
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -191,33 +160,33 @@ State is data that changes over time. When state changes, React re-renders the c
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="text-xl font-semibold mb-4">Input</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4 flex-1">
+        <Card className="flex flex-col h-full">
+          <CardContent className="p-4 flex flex-col h-full">
+            <h2 className="text-xl font-semibold mb-2">Input</h2>
             <Textarea
               value={markdown}
               onChange={(e) => setMarkdown(e.target.value)}
-              className="min-h-[400px] font-mono"
+              className="flex-1 min-h-0 font-mono resize-none"
               placeholder="Enter your markdown notes here..."
             />
-            <div className="mt-4 text-sm text-muted-foreground">
+            <div className="mt-2 text-sm text-muted-foreground">
               Use markdown headings (#) for key points. Content under each heading will appear as notes.
-              <br />
-              Supports Markdown features: **bold**, *italic*, lists, tables, code blocks, and more.
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="text-xl font-semibold mb-4">Preview</h2>
-            <CornellNotes markdown={markdown} />
+        <Card className="flex flex-col h-full">
+          <CardContent className="p-4 flex flex-col h-full overflow-auto">
+            <h2 className="text-xl font-semibold mb-2">Preview</h2>
+            <div className="flex-1 overflow-auto">
+              <CornellNotes markdown={markdown} />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 mt-auto pt-2">
         <Button variant="outline" className="button-black-outline" onClick={handleExportPdf}>
           <FileDown className="mr-2 h-4 w-4" />
           Export PDF
