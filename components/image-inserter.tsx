@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Upload } from "lucide-react"
+import { storeImage } from "@/lib/image-storage"
 
 interface ImageInserterProps {
   isOpen: boolean
@@ -26,31 +27,40 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Update the handleInsert function to ensure images are properly formatted for PDF export
-  const handleInsert = () => {
-    let markdown = ""
+  // Handle image insertion with storage
+  const handleInsert = async () => {
+    try {
+      let markdown = ""
 
-    if (activeTab === "url") {
-      // For regular image URLs
-      if (!imageUrl.trim()) {
-        return // Don't insert if URL is empty
+      if (activeTab === "url") {
+        // For regular image URLs, use them directly
+        if (!imageUrl.trim()) {
+          return // Don't insert if URL is empty
+        }
+        markdown = `<img src="${imageUrl}" alt="${altText || "Image"}" />\n`
+      } else if (activeTab === "placeholder") {
+        // For placeholder images, use the placeholder URL
+        const query = encodeURIComponent(placeholderQuery || "abstract")
+        const placeholderUrl = `/placeholder.svg?height=${placeholderHeight}&width=${placeholderWidth}&query=${query}`
+        markdown = `<img src="${placeholderUrl}" alt="${altText || "Placeholder image"}" />\n`
+      } else if (activeTab === "upload" && uploadedImage) {
+        // For uploaded images, store in IndexedDB and use the image ID
+        setIsLoading(true)
+        const imageId = await storeImage(uploadedImage, uploadedFileName)
+        markdown = `<img src="cornell-image://${imageId}" alt="${altText || uploadedFileName || "Uploaded image"}" />\n`
+        console.log(`Image stored with ID: ${imageId}`)
       }
-      // Use data URL for better PDF compatibility
-      markdown = `<img src="${imageUrl}" alt="${altText || "Image"}" />\n`
-    } else if (activeTab === "placeholder") {
-      // For placeholder images
-      const query = encodeURIComponent(placeholderQuery || "abstract")
-      const placeholderUrl = `/placeholder.svg?height=${placeholderHeight}&width=${placeholderWidth}&query=${query}`
-      markdown = `<img src="${placeholderUrl}" alt="${altText || "Placeholder image"}" />\n`
-    } else if (activeTab === "upload" && uploadedImage) {
-      // For uploaded images - these are already blob URLs which should work
-      markdown = `<img src="${uploadedImage}" alt="${altText || uploadedFileName || "Uploaded image"}" />\n`
-    }
 
-    console.log("Inserting image HTML:", markdown)
-    onInsert(markdown)
-    resetForm()
-    onClose()
+      console.log("Inserting image HTML:", markdown.substring(0, 100) + "...")
+      onInsert(markdown)
+      resetForm()
+      onClose()
+    } catch (error) {
+      console.error("Error inserting image:", error)
+      alert("Failed to insert image. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const resetForm = () => {
@@ -64,7 +74,7 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
     setActiveTab("url")
   }
 
-  // Update the handleFileChange function to ensure we're creating proper data URLs
+  // Always use data URLs for uploaded images
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -88,7 +98,7 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
         setAltText(nameWithoutExtension)
       }
 
-      // Create a data URL for the file for better PDF compatibility
+      // Create a data URL for the file
       const reader = new FileReader()
       reader.onload = (event) => {
         if (event.target && typeof event.target.result === "string") {
@@ -188,9 +198,6 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        if (uploadedImage) {
-                          URL.revokeObjectURL(uploadedImage)
-                        }
                         setUploadedImage(null)
                         setUploadedFileName("")
                       }}

@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf"
+import { getImage } from "./image-storage"
 
 interface Section {
   heading: string
@@ -63,6 +64,37 @@ function parseMarkdown(markdown: string): Section[] {
   return sections
 }
 
+// Process content to load images from storage
+async function processContentForExport(content: string): Promise<string> {
+  let processedContent = content
+
+  // Find all cornell-image:// URLs
+  const imageRegex = /cornell-image:\/\/(.*?)["']/g
+  const matches = [...content.matchAll(imageRegex)]
+
+  // Replace each cornell-image:// URL with the actual image data
+  for (const match of matches) {
+    const imageId = match[1]
+
+    if (imageId) {
+      try {
+        const imageData = await getImage(imageId)
+        if (imageData) {
+          // Replace the cornell-image:// URL with the actual image data
+          processedContent = processedContent.replace(
+            new RegExp(`cornell-image://${imageId}["']`, "g"),
+            `${imageData}"`,
+          )
+        }
+      } catch (error) {
+        console.error(`Error loading image ${imageId} for export:`, error)
+      }
+    }
+  }
+
+  return processedContent
+}
+
 // Extract image URLs from markdown and HTML
 function extractImageUrls(content: string): string[] {
   const urls: string[] = []
@@ -85,44 +117,6 @@ function extractImageUrls(content: string): string[] {
   }
 
   return urls
-}
-
-// Convert blob URLs to data URLs for PDF export
-async function convertBlobUrlsToDataUrls(content: string): Promise<string> {
-  let processedContent = content
-
-  // Extract all image URLs
-  const imageUrls = extractImageUrls(content)
-
-  // Convert each blob URL to a data URL
-  for (const url of imageUrls) {
-    if (url.startsWith("blob:")) {
-      try {
-        const response = await fetch(url)
-        const blob = await response.blob()
-        const reader = new FileReader()
-
-        const dataUrl = await new Promise<string>((resolve) => {
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.readAsDataURL(blob)
-        })
-
-        // Replace the blob URL with the data URL in both markdown and HTML formats
-        processedContent = processedContent.replace(
-          new RegExp(`\\]\$$${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\$$`, "g"),
-          `](${dataUrl})`,
-        )
-        processedContent = processedContent.replace(
-          new RegExp(`src=["']${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`, "g"),
-          `src="${dataUrl}"`,
-        )
-      } catch (error) {
-        console.error(`Failed to convert blob URL to data URL: ${url}`, error)
-      }
-    }
-  }
-
-  return processedContent
 }
 
 // Clean markdown text for rendering
@@ -326,14 +320,14 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
     // Check for code blocks
     if (line.trim().startsWith("```")) {
       const codeLines = []
-      i++ // Skip the opening \`\`\`
+      i++ // Skip the opening ```
 
       while (i < lines.length && !lines[i].trim().startsWith("```")) {
         codeLines.push(lines[i])
         i++
       }
 
-      i++ // Skip the closing \`\`\`
+      i++ // Skip the closing ```
       currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth)
       continue
     }
@@ -491,21 +485,25 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
       // Create an image element to get dimensions
       const img = new Image()
 
-      // Convert blob URLs to data URLs
-      let imgSrc = image.src
-      if (image.src.startsWith("blob:")) {
+      // Check if it's a cornell-image:// URL
+      if (image.src.startsWith("cornell-image://")) {
+        const imageId = image.src.replace("cornell-image://", "")
         try {
-          const response = await fetch(image.src)
-          const blob = await response.blob()
-          imgSrc = await new Promise<string>((resolve) => {
-            const reader = new FileReader()
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.readAsDataURL(blob)
-          })
-          console.log("Converted blob URL to data URL")
+          const imageData = await getImage(imageId)
+          if (imageData) {
+            image.src = imageData
+          } else {
+            // Use a placeholder if image not found
+            doc.setFontSize(9)
+            doc.setTextColor(100, 100, 100)
+            doc.text(`[Image not found: ${image.alt || "Unknown"}]`, x, currentY)
+            doc.setTextColor(0, 0, 0)
+            currentY += 20
+            continue
+          }
         } catch (error) {
-          console.error("Error converting blob URL:", error)
-          // Use a placeholder if conversion fails
+          console.error("Error loading image from storage:", error)
+          // Use a placeholder if loading fails
           doc.setFontSize(9)
           doc.setTextColor(100, 100, 100)
           doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
@@ -515,20 +513,10 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
         }
       }
 
-      // For external URLs, we'll use a placeholder
-      if (imgSrc.startsWith("http") && !imgSrc.startsWith("data:")) {
-        doc.setFontSize(9)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`[External Image: ${image.alt || "Image"}]`, x, currentY)
-        doc.setTextColor(0, 0, 0)
-        currentY += 20
-        continue
-      }
-
       // For data URLs, we can use them directly with jsPDF
-      if (imgSrc.startsWith("data:")) {
+      if (image.src.startsWith("data:")) {
         // Get the image format from the data URL
-        const format = imgSrc.split(";")[0].split("/")[1].toUpperCase()
+        const format = image.src.split(";")[0].split("/")[1].toUpperCase()
         const validFormat = ["JPEG", "JPG", "PNG"].includes(format) ? format : "JPEG"
 
         // Calculate dimensions to maintain aspect ratio
@@ -540,7 +528,7 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
 
             try {
               // Add the image to the PDF
-              doc.addImage(imgSrc, validFormat, x, currentY, imgWidth, imgHeight, undefined, "FAST")
+              doc.addImage(image.src, validFormat, x, currentY, imgWidth, imgHeight, undefined, "FAST")
               console.log("Added image to PDF successfully")
 
               // Add caption if there's alt text
@@ -578,7 +566,7 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
 
           // Set crossOrigin to anonymous to avoid CORS issues
           img.crossOrigin = "anonymous"
-          img.src = imgSrc
+          img.src = image.src
         })
       } else {
         // For other URLs, use a placeholder
@@ -605,8 +593,8 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
 // Export to PDF with improved markdown rendering
 export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
   try {
-    // First, process the markdown to convert any blob URLs to data URLs
-    const processedMarkdown = await convertBlobUrlsToDataUrls(markdown)
+    // First, process the markdown to load images from storage
+    const processedMarkdown = await processContentForExport(markdown)
 
     const sections = parseMarkdown(processedMarkdown)
 

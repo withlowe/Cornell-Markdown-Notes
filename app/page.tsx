@@ -41,6 +41,7 @@ Here's a simple list of React concepts:
   )
   const [isTableGeneratorOpen, setIsTableGeneratorOpen] = useState(false)
   const [isImageInserterOpen, setIsImageInserterOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Check if we're editing an existing document
@@ -60,22 +61,34 @@ Here's a simple list of React concepts:
     }
   }, [])
 
-  const handleSave = () => {
-    const docId = saveDocument({
-      id: id || undefined,
-      title,
-      summary,
-      tags,
-      content: markdown,
-      createdAt: new Date().toISOString(),
-    })
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      const docId = await saveDocument({
+        id: id || undefined,
+        title,
+        summary,
+        tags,
+        content: markdown,
+        createdAt: new Date().toISOString(),
+      })
 
-    setId(docId)
+      setId(docId)
 
-    toast({
-      title: "Document saved",
-      description: "Your note has been saved to your library",
-    })
+      toast({
+        title: "Document saved",
+        description: "Your note has been saved to your library",
+      })
+    } catch (error) {
+      console.error("Error saving document:", error)
+      toast({
+        title: "Save failed",
+        description: "There was an error saving your note. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleExportPdf = async () => {
@@ -368,9 +381,9 @@ Here's a simple list of React concepts:
           <FileDown className="mr-2 h-4 w-4" />
           Export PDF
         </Button>
-        <Button onClick={handleSave}>
+        <Button onClick={handleSave} disabled={isSaving}>
           <Save className="mr-2 h-4 w-4" />
-          Save to Library
+          {isSaving ? "Saving..." : "Save to Library"}
         </Button>
       </div>
 

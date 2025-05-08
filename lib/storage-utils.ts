@@ -1,3 +1,5 @@
+import { getAllImages, cleanupUnusedImages } from "./image-storage"
+
 export interface DocumentData {
   id: string
   title: string
@@ -5,6 +7,21 @@ export interface DocumentData {
   content: string
   tags: string[]
   createdAt: string
+}
+
+// Extract all image IDs from content
+function extractImageIds(content: string): string[] {
+  const imageIds: string[] = []
+  const regex = /cornell-image:\/\/(.*?)["']/g
+  let match
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match[1]) {
+      imageIds.push(match[1])
+    }
+  }
+
+  return imageIds
 }
 
 // Get all documents from localStorage
@@ -27,7 +44,7 @@ export function getDocument(id: string): DocumentData | null {
 }
 
 // Save a document (create or update)
-export function saveDocument(doc: Omit<DocumentData, "id"> & { id?: string }): string {
+export async function saveDocument(doc: Omit<DocumentData, "id"> & { id?: string }): Promise<string> {
   const docs = getAllDocuments()
 
   // If id is provided, update existing document
@@ -62,4 +79,48 @@ export function deleteDocument(id: string): boolean {
   }
 
   return false
+}
+
+// Clean up unused images
+export async function cleanupImages(): Promise<number> {
+  try {
+    // Get all documents
+    const docs = getAllDocuments()
+
+    // Extract all image IDs from all documents
+    const usedImageIds: string[] = []
+    docs.forEach((doc) => {
+      const ids = extractImageIds(doc.content)
+      usedImageIds.push(...ids)
+    })
+
+    // Remove duplicates
+    const uniqueImageIds = [...new Set(usedImageIds)]
+
+    // Clean up unused images
+    const deletedCount = await cleanupUnusedImages(uniqueImageIds)
+
+    return deletedCount
+  } catch (error) {
+    console.error("Error cleaning up images:", error)
+    return 0
+  }
+}
+
+// Export all documents and images
+export async function exportAllData(): Promise<string> {
+  try {
+    const docs = getAllDocuments()
+    const images = await getAllImages()
+
+    const exportData = {
+      documents: docs,
+      images,
+    }
+
+    return JSON.stringify(exportData)
+  } catch (error) {
+    console.error("Error exporting data:", error)
+    throw new Error("Failed to export data")
+  }
 }

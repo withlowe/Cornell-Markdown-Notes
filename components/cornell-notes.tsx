@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useEffect, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { getImage } from "@/lib/image-storage"
 
 interface CornellNotesProps {
   markdown: string
@@ -14,9 +15,55 @@ interface Section {
 }
 
 export function CornellNotes({ markdown }: CornellNotesProps) {
+  const [processedContent, setProcessedContent] = useState<string>(markdown)
+
+  // Process the markdown to load images from storage
+  useEffect(() => {
+    const processImages = async () => {
+      let content = markdown
+
+      // Find all cornell-image:// URLs
+      const imageRegex = /<img.*?src=["']cornell-image:\/\/(.*?)["'].*?>/g
+      const matches = [...content.matchAll(imageRegex)]
+
+      // Replace each cornell-image:// URL with the actual image data
+      for (const match of matches) {
+        const fullMatch = match[0]
+        const imageId = match[1]
+
+        if (imageId) {
+          try {
+            const imageData = await getImage(imageId)
+            if (imageData) {
+              // Replace the cornell-image:// URL with the actual image data
+              content = content.replace(fullMatch, fullMatch.replace(`cornell-image://${imageId}`, imageData))
+            } else {
+              // If image not found, replace with error image
+              content = content.replace(
+                fullMatch,
+                fullMatch.replace(`cornell-image://${imageId}`, "/system-error-screen.png"),
+              )
+            }
+          } catch (error) {
+            console.error(`Error loading image ${imageId}:`, error)
+            // Replace with error image on failure
+            content = content.replace(
+              fullMatch,
+              fullMatch.replace(`cornell-image://${imageId}`, "/system-error-screen.png"),
+            )
+          }
+        }
+      }
+
+      setProcessedContent(content)
+    }
+
+    processImages()
+  }, [markdown])
+
   const sections = useMemo(() => {
     // Split the markdown by headings
-    const lines = markdown.split("\n")
+    const lines = processedContent.split("\n")
     const sections: Section[] = []
 
     let currentHeading = ""
@@ -51,7 +98,7 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
     }
 
     return sections
-  }, [markdown])
+  }, [processedContent])
 
   // If there are no sections, show a message
   if (sections.length === 0) {
