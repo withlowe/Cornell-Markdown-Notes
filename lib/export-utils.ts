@@ -444,25 +444,15 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
 // Add images to PDF
 async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): Promise<number> {
   let currentY = y
-  const lineHeight = 20 // Default height for images
+  const imageMargin = 10 // Space between images
+  const maxImageHeight = 60 // Maximum height for images in the PDF
 
   // Extract all image URLs (both markdown and HTML)
-  const markdownImageRegex = /!\[(.*?)\]$$(.*?)$$/g
   const htmlImageRegex = /<img.*?src=["'](.*?)["'].*?>/g
-
   let match
   const imagesToAdd = []
 
-  // Find markdown images
-  while ((match = markdownImageRegex.exec(content)) !== null) {
-    const alt = match[1]
-    const src = match[2]
-    if (src) {
-      imagesToAdd.push({ src, alt })
-    }
-  }
-
-  // Find HTML images
+  // Find HTML images (our app primarily uses HTML img tags)
   while ((match = htmlImageRegex.exec(content)) !== null) {
     const src = match[1]
     // Extract alt text if available
@@ -471,26 +461,141 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
 
     if (src) {
       imagesToAdd.push({ src, alt })
+      console.log("Found image in content:", src.substring(0, 50) + "...")
     }
   }
+
+  // If no images were found, return the current Y position
+  if (imagesToAdd.length === 0) {
+    console.log("No images found in content")
+    return currentY
+  }
+
+  console.log(`Found ${imagesToAdd.length} images to add to PDF`)
 
   // Add each image to the PDF
   for (const image of imagesToAdd) {
     try {
-      // For all image types, add a placeholder text
-      doc.setFontSize(9)
-      doc.setTextColor(100, 100, 100)
-      doc.text(`[Image: ${image.alt || "Image"}]`, x, currentY)
-      doc.setTextColor(0, 0, 0)
-      currentY += lineHeight
+      console.log("Processing image:", image.src.substring(0, 50) + "...")
+
+      // Skip placeholder images
+      if (image.src.includes("/placeholder.svg") || image.src.includes("/generic-placeholder-icon.png")) {
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Placeholder Image: ${image.alt || "Image"}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += 20
+        continue
+      }
+
+      // Create an image element to get dimensions
+      const img = new Image()
+
+      // Convert blob URLs to data URLs
+      let imgSrc = image.src
+      if (image.src.startsWith("blob:")) {
+        try {
+          const response = await fetch(image.src)
+          const blob = await response.blob()
+          imgSrc = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+          console.log("Converted blob URL to data URL")
+        } catch (error) {
+          console.error("Error converting blob URL:", error)
+          // Use a placeholder if conversion fails
+          doc.setFontSize(9)
+          doc.setTextColor(100, 100, 100)
+          doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
+          doc.setTextColor(0, 0, 0)
+          currentY += 20
+          continue
+        }
+      }
+
+      // For external URLs, we'll use a placeholder
+      if (imgSrc.startsWith("http") && !imgSrc.startsWith("data:")) {
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[External Image: ${image.alt || "Image"}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += 20
+        continue
+      }
+
+      // For data URLs, we can use them directly with jsPDF
+      if (imgSrc.startsWith("data:")) {
+        // Get the image format from the data URL
+        const format = imgSrc.split(";")[0].split("/")[1].toUpperCase()
+        const validFormat = ["JPEG", "JPG", "PNG"].includes(format) ? format : "JPEG"
+
+        // Calculate dimensions to maintain aspect ratio
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            const aspectRatio = img.width / img.height
+            const imgWidth = Math.min(maxWidth, 150)
+            const imgHeight = Math.min(imgWidth / aspectRatio, maxImageHeight)
+
+            try {
+              // Add the image to the PDF
+              doc.addImage(imgSrc, validFormat, x, currentY, imgWidth, imgHeight, undefined, "FAST")
+              console.log("Added image to PDF successfully")
+
+              // Add caption if there's alt text
+              if (image.alt) {
+                doc.setFontSize(8)
+                doc.setTextColor(100, 100, 100)
+                const captionY = currentY + imgHeight + 5
+                doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
+                currentY = captionY + 10
+              } else {
+                currentY += imgHeight + imageMargin
+              }
+            } catch (error) {
+              console.error("Error adding image to PDF:", error)
+              // Use a placeholder if adding fails
+              doc.setFontSize(9)
+              doc.setTextColor(100, 100, 100)
+              doc.text(`[Image could not be added to PDF: ${error.message || "Unknown error"}]`, x, currentY)
+              doc.setTextColor(0, 0, 0)
+              currentY += 20
+            }
+            resolve()
+          }
+
+          img.onerror = () => {
+            console.error("Error loading image")
+            // Use a placeholder if loading fails
+            doc.setFontSize(9)
+            doc.setTextColor(100, 100, 100)
+            doc.text(`[Image could not be loaded]`, x, currentY)
+            doc.setTextColor(0, 0, 0)
+            currentY += 20
+            resolve()
+          }
+
+          // Set crossOrigin to anonymous to avoid CORS issues
+          img.crossOrigin = "anonymous"
+          img.src = imgSrc
+        })
+      } else {
+        // For other URLs, use a placeholder
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Image: ${image.alt || image.src}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += 20
+      }
     } catch (error) {
       console.error(`Failed to add image to PDF: ${image.src}`, error)
       // Add a placeholder for failed images
       doc.setFontSize(9)
       doc.setTextColor(100, 100, 100)
-      doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
+      doc.text(`[Image could not be loaded: ${error.message || "Unknown error"}]`, x, currentY)
       doc.setTextColor(0, 0, 0)
-      currentY += lineHeight
+      currentY += 20
     }
   }
 

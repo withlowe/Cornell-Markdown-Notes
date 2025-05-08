@@ -26,6 +26,7 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Update the handleInsert function to ensure images are properly formatted for PDF export
   const handleInsert = () => {
     let markdown = ""
 
@@ -34,16 +35,15 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
       if (!imageUrl.trim()) {
         return // Don't insert if URL is empty
       }
-      // Use HTML img tag directly for better compatibility
+      // Use data URL for better PDF compatibility
       markdown = `<img src="${imageUrl}" alt="${altText || "Image"}" />\n`
     } else if (activeTab === "placeholder") {
       // For placeholder images
       const query = encodeURIComponent(placeholderQuery || "abstract")
       const placeholderUrl = `/placeholder.svg?height=${placeholderHeight}&width=${placeholderWidth}&query=${query}`
-      // Use HTML img tag directly for better compatibility
       markdown = `<img src="${placeholderUrl}" alt="${altText || "Placeholder image"}" />\n`
     } else if (activeTab === "upload" && uploadedImage) {
-      // For uploaded images - use HTML img tag directly
+      // For uploaded images - these are already blob URLs which should work
       markdown = `<img src="${uploadedImage}" alt="${altText || uploadedFileName || "Uploaded image"}" />\n`
     }
 
@@ -64,6 +64,7 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
     setActiveTab("url")
   }
 
+  // Update the handleFileChange function to ensure we're creating proper data URLs
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -87,15 +88,24 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
         setAltText(nameWithoutExtension)
       }
 
-      // Create a simple URL for the file
-      const objectUrl = URL.createObjectURL(file)
-      setUploadedImage(objectUrl)
-
-      console.log("Created object URL:", objectUrl)
+      // Create a data URL for the file for better PDF compatibility
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        if (event.target && typeof event.target.result === "string") {
+          setUploadedImage(event.target.result)
+          console.log("Created data URL for image")
+        }
+        setIsLoading(false)
+      }
+      reader.onerror = () => {
+        console.error("Error reading file")
+        alert("Failed to process the image. Please try again with a different image.")
+        setIsLoading(false)
+      }
+      reader.readAsDataURL(file)
     } catch (error) {
       console.error("Error processing image:", error)
       alert("Failed to process the image. Please try again with a different image.")
-    } finally {
       setIsLoading(false)
     }
   }
