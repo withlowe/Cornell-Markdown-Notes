@@ -12,9 +12,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { TagInput } from "@/components/tag-input"
 import { TableGenerator } from "@/components/table-generator"
+import { ImageInserter } from "@/components/image-inserter"
 import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
-import { PlusCircle, Save, FileDown, BookOpen, ArrowLeft, Table2 } from "lucide-react"
+import { PlusCircle, Save, FileDown, BookOpen, ArrowLeft, Table2, ImageIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function NotesApp() {
@@ -39,6 +40,7 @@ Here's a simple list of React concepts:
 - Virtual DOM`,
   )
   const [isTableGeneratorOpen, setIsTableGeneratorOpen] = useState(false)
+  const [isImageInserterOpen, setIsImageInserterOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Check if we're editing an existing document
@@ -96,32 +98,37 @@ Here's a simple list of React concepts:
   }
 
   const handleInsertTable = (tableMarkdown: string) => {
-    // Insert the table at the current cursor position or at the end
+    insertAtCursor(tableMarkdown)
+  }
+
+  // Update the handleInsertImage function to ensure proper markdown formatting for data URLs
+  const handleInsertImage = (imageMarkdown: string) => {
+    console.log("Inserting image markdown:", imageMarkdown.substring(0, 50) + "...")
+    insertAtCursor(imageMarkdown)
+  }
+
+  const insertAtCursor = (content: string) => {
+    // Insert the content at the current cursor position or at the end
     const textarea = textareaRef.current
 
     if (textarea) {
       const start = textarea.selectionStart
       const end = textarea.selectionEnd
 
-      const newMarkdown = markdown.substring(0, start) + "\n" + tableMarkdown + "\n" + markdown.substring(end)
+      const newMarkdown = markdown.substring(0, start) + content + markdown.substring(end)
 
       setMarkdown(newMarkdown)
 
       // Set focus back to textarea
       setTimeout(() => {
         textarea.focus()
-        const newCursorPos = start + tableMarkdown.length + 2
+        const newCursorPos = start + content.length
         textarea.setSelectionRange(newCursorPos, newCursorPos)
       }, 0)
     } else {
       // If we can't find the textarea, just append to the end
-      setMarkdown(markdown + "\n\n" + tableMarkdown)
+      setMarkdown(markdown + "\n\n" + content)
     }
-
-    toast({
-      title: "Table inserted",
-      description: "Markdown table has been added to your note",
-    })
   }
 
   // Handle keyboard input for table detection and formatting
@@ -307,15 +314,26 @@ Here's a simple list of React concepts:
           <CardContent className="p-4 flex flex-col h-full">
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-xl font-semibold">Input</h2>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsTableGeneratorOpen(true)}
-                className="flex items-center gap-1"
-              >
-                <Table2 className="h-4 w-4" />
-                <span>Add Table</span>
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsImageInserterOpen(true)}
+                  className="flex items-center gap-1"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Add Image</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsTableGeneratorOpen(true)}
+                  className="flex items-center gap-1"
+                >
+                  <Table2 className="h-4 w-4" />
+                  <span>Add Table</span>
+                </Button>
+              </div>
             </div>
             <Textarea
               ref={textareaRef}
@@ -329,8 +347,7 @@ Here's a simple list of React concepts:
               Use markdown headings (#) for key points. Content under each heading will appear as notes.
               <br />
               <span className="text-xs">
-                Tip: Type <code>|column1|column2|</code> and press Enter to create a table row, or use the table
-                generator for formatted tables.
+                Tip: Use the Add Image and Add Table buttons to insert media at your cursor position.
               </span>
             </div>
           </CardContent>
@@ -361,6 +378,12 @@ Here's a simple list of React concepts:
         isOpen={isTableGeneratorOpen}
         onClose={() => setIsTableGeneratorOpen(false)}
         onInsert={handleInsertTable}
+      />
+
+      <ImageInserter
+        isOpen={isImageInserterOpen}
+        onClose={() => setIsImageInserterOpen(false)}
+        onInsert={handleInsertImage}
       />
     </main>
   )
