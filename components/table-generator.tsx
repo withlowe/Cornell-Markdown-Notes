@@ -5,8 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlignLeft, AlignCenter, AlignRight } from "lucide-react"
 
 interface TableGeneratorProps {
@@ -23,7 +21,6 @@ export function TableGenerator({ isOpen, onClose, onInsert }: TableGeneratorProp
   const [hasHeader, setHasHeader] = useState(true)
   const [cellValues, setCellValues] = useState<string[][]>([])
   const [columnAlignments, setColumnAlignments] = useState<Alignment[]>([])
-  const [activeTab, setActiveTab] = useState("editor")
 
   // Initialize cell values and alignments when rows or columns change
   const initializeTable = () => {
@@ -141,15 +138,17 @@ export function TableGenerator({ isOpen, onClose, onInsert }: TableGeneratorProp
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Markdown Table Generator</DialogTitle>
+          <DialogTitle>Table Generator</DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="rows">Rows</Label>
+        <div className="grid gap-4 py-2">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="w-20">
+              <Label htmlFor="rows" className="text-xs">
+                Rows
+              </Label>
               <Input
                 id="rows"
                 type="number"
@@ -162,10 +161,13 @@ export function TableGenerator({ isOpen, onClose, onInsert }: TableGeneratorProp
                     setRows(value)
                   }
                 }}
+                className="h-8"
               />
             </div>
-            <div>
-              <Label htmlFor="columns">Columns</Label>
+            <div className="w-20">
+              <Label htmlFor="columns" className="text-xs">
+                Columns
+              </Label>
               <Input
                 id="columns"
                 type="number"
@@ -178,160 +180,105 @@ export function TableGenerator({ isOpen, onClose, onInsert }: TableGeneratorProp
                     setColumns(value)
                   }
                 }}
+                className="h-8"
               />
             </div>
-            <div className="flex items-end">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="hasHeader"
-                  checked={hasHeader}
-                  onChange={(e) => setHasHeader(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                <Label htmlFor="hasHeader">Include header row</Label>
-              </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="hasHeader"
+                checked={hasHeader}
+                onChange={(e) => setHasHeader(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="hasHeader" className="text-xs">
+                Header row
+              </Label>
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="editor">Editor</TabsTrigger>
-              <TabsTrigger value="preview">Preview</TabsTrigger>
-            </TabsList>
-            <TabsContent value="editor" className="border rounded-md p-4 mt-2">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr>
-                      {Array.from({ length: columns }).map((_, colIndex) => (
-                        <th key={colIndex} className="p-2 border">
-                          <div className="flex flex-col gap-2">
-                            <Input
-                              value={cellValues[0]?.[colIndex] || ""}
-                              onChange={(e) => updateCellValue(0, colIndex, e.target.value)}
-                              placeholder={hasHeader ? `Column ${colIndex + 1}` : `Cell 1,${colIndex + 1}`}
-                              className="text-center"
-                            />
-                            {hasHeader && (
-                              <div className="flex justify-center gap-1">
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant={columnAlignments[colIndex] === "left" ? "default" : "outline"}
-                                  className="h-7 w-7"
-                                  onClick={() => updateColumnAlignment(colIndex, "left")}
-                                >
-                                  <AlignLeft className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant={columnAlignments[colIndex] === "center" ? "default" : "outline"}
-                                  className="h-7 w-7"
-                                  onClick={() => updateColumnAlignment(colIndex, "center")}
-                                >
-                                  <AlignCenter className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant={columnAlignments[colIndex] === "right" ? "default" : "outline"}
-                                  className="h-7 w-7"
-                                  onClick={() => updateColumnAlignment(colIndex, "right")}
-                                >
-                                  <AlignRight className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
+          <div className="overflow-x-auto border rounded-md p-2">
+            <table className="w-full border-collapse">
+              {hasHeader && (
+                <thead>
+                  <tr>
+                    {Array.from({ length: columns }).map((_, colIndex) => (
+                      <th key={colIndex} className="p-1 border">
+                        <div className="flex flex-col gap-1">
+                          <Input
+                            value={cellValues[0]?.[colIndex] || ""}
+                            onChange={(e) => updateCellValue(0, colIndex, e.target.value)}
+                            placeholder={`Column ${colIndex + 1}`}
+                            className="text-center h-8 text-sm"
+                          />
+                          <div className="flex justify-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant={columnAlignments[colIndex] === "left" ? "default" : "outline"}
+                              className="h-6 w-6"
+                              onClick={() => updateColumnAlignment(colIndex, "left")}
+                              title="Align left"
+                            >
+                              <AlignLeft className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant={columnAlignments[colIndex] === "center" ? "default" : "outline"}
+                              className="h-6 w-6"
+                              onClick={() => updateColumnAlignment(colIndex, "center")}
+                              title="Align center"
+                            >
+                              <AlignCenter className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant={columnAlignments[colIndex] === "right" ? "default" : "outline"}
+                              className="h-6 w-6"
+                              onClick={() => updateColumnAlignment(colIndex, "right")}
+                              title="Align right"
+                            >
+                              <AlignRight className="h-3 w-3" />
+                            </Button>
                           </div>
-                        </th>
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {Array.from({ length: rows - (hasHeader ? 1 : 0) }).map((_, rowIndex) => {
+                  const actualRowIndex = hasHeader ? rowIndex + 1 : rowIndex
+                  return (
+                    <tr key={actualRowIndex}>
+                      {Array.from({ length: columns }).map((_, colIndex) => (
+                        <td key={colIndex} className="p-1 border">
+                          <Input
+                            value={cellValues[actualRowIndex]?.[colIndex] || ""}
+                            onChange={(e) => updateCellValue(actualRowIndex, colIndex, e.target.value)}
+                            placeholder={`Cell ${actualRowIndex + 1},${colIndex + 1}`}
+                            className="h-8 text-sm"
+                          />
+                        </td>
                       ))}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: rows - 1 }).map((_, rowIndex) => {
-                      const actualRowIndex = rowIndex + 1
-                      return (
-                        <tr key={actualRowIndex}>
-                          {Array.from({ length: columns }).map((_, colIndex) => (
-                            <td key={colIndex} className="p-2 border">
-                              <Input
-                                value={cellValues[actualRowIndex]?.[colIndex] || ""}
-                                onChange={(e) => updateCellValue(actualRowIndex, colIndex, e.target.value)}
-                                placeholder={`Cell ${actualRowIndex + 1},${colIndex + 1}`}
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </TabsContent>
-            <TabsContent value="preview" className="border rounded-md p-4 mt-2">
-              <div className="overflow-x-auto">
-                <Table>
-                  {hasHeader && (
-                    <TableHeader>
-                      <TableRow>
-                        {Array.from({ length: columns }).map((_, colIndex) => (
-                          <TableHead
-                            key={colIndex}
-                            className={
-                              columnAlignments[colIndex] === "center"
-                                ? "text-center"
-                                : columnAlignments[colIndex] === "right"
-                                  ? "text-right"
-                                  : "text-left"
-                            }
-                          >
-                            {cellValues[0]?.[colIndex] || ""}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                  )}
-                  <TableBody>
-                    {Array.from({ length: rows - (hasHeader ? 1 : 0) }).map((_, rowIndex) => {
-                      const actualRowIndex = hasHeader ? rowIndex + 1 : rowIndex
-                      return (
-                        <TableRow key={actualRowIndex}>
-                          {Array.from({ length: columns }).map((_, colIndex) => (
-                            <TableCell
-                              key={colIndex}
-                              className={
-                                columnAlignments[colIndex] === "center"
-                                  ? "text-center"
-                                  : columnAlignments[colIndex] === "right"
-                                    ? "text-right"
-                                    : "text-left"
-                              }
-                            >
-                              {cellValues[actualRowIndex]?.[colIndex] || ""}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <div className="bg-muted p-4 rounded-md">
-            <Label className="mb-2 block">Generated Markdown</Label>
-            <pre className="text-xs overflow-x-auto p-2 bg-background rounded border">{generateMarkdownTable()}</pre>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose} size="sm">
             Cancel
           </Button>
-          <Button onClick={handleInsert}>Insert Table</Button>
+          <Button onClick={handleInsert} size="sm">
+            Insert Table
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
