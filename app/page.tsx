@@ -287,9 +287,6 @@ Here's a simple list of React concepts:
             </div>
 
             <div>
-              <Label htmlFor="summary" className="mb-2 block">
-                Summary
-              </Label>
               <Textarea
                 id="summary"
                 value={summary}
