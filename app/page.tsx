@@ -112,7 +112,7 @@ State is data that changes over time. When state changes, React re-renders the c
 
       toast({
         title: "PDF export failed",
-        description: "There was an error exporting your note to PDF",
+        description: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
         variant: "destructive",
       })
     }

@@ -73,7 +73,7 @@ function cleanMarkdown(text: string): string {
   return text
 }
 
-// Export to PDF
+// Export to PDF with minimal ink usage
 export async function exportToPdf(title: string, markdown: string): Promise<void> {
   const sections = parseMarkdown(markdown)
 
@@ -85,31 +85,27 @@ export async function exportToPdf(title: string, markdown: string): Promise<void
   })
 
   // Set title
-  doc.setFontSize(20)
-  doc.text(title, 20, 20)
-
-  // Add Cornell note structure
-  doc.setFontSize(14)
-  doc.text("Notes", 20, 30)
+  doc.setFontSize(16)
+  doc.text(title, 15, 15)
 
   // Draw the Cornell note structure
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 20
-  const keyPointsWidth = 50
+  const margin = 15
+  const keyPointsWidth = 45
   const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
-  // Draw header
-  doc.setFillColor(240, 240, 240)
-  doc.rect(margin, 40, keyPointsWidth, 10, "F")
-  doc.rect(margin + keyPointsWidth, 40, contentWidth, 10, "F")
-
+  // Draw header - no shading, just text
   doc.setFontSize(10)
-  doc.text("Key Points", margin + keyPointsWidth / 2 - 10, 46)
-  doc.text("Notes", margin + keyPointsWidth + contentWidth / 2 - 10, 46)
+  doc.text("Key Points", margin + 5, 25)
+  doc.text("Notes", margin + keyPointsWidth + 5, 25)
 
-  // Draw content
-  let y = 50
+  // Draw a single light horizontal line under the header
+  doc.setDrawColor(220, 220, 220) // Very light gray
+  doc.line(margin, 27, margin + keyPointsWidth + contentWidth, 27)
+
+  // Draw content with minimal styling
+  let y = 30
   const lineHeight = 7
 
   sections.forEach((section, index) => {
@@ -118,14 +114,14 @@ export async function exportToPdf(title: string, markdown: string): Promise<void
       doc.addPage()
       y = margin
 
-      // Redraw header on new page
-      doc.setFillColor(240, 240, 240)
-      doc.rect(margin, y, keyPointsWidth, 10, "F")
-      doc.rect(margin + keyPointsWidth, y, contentWidth, 10, "F")
-
+      // Redraw header on new page - just text, no shading
       doc.setFontSize(10)
-      doc.text("Key Points", margin + keyPointsWidth / 2 - 10, y + 6)
-      doc.text("Notes", margin + keyPointsWidth + contentWidth / 2 - 10, y + 6)
+      doc.text("Key Points", margin + 5, y + 5)
+      doc.text("Notes", margin + keyPointsWidth + 5, y + 5)
+
+      // Draw a single light horizontal line under the header
+      doc.setDrawColor(220, 220, 220) // Very light gray
+      doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
 
       y += 10
     }
@@ -135,19 +131,29 @@ export async function exportToPdf(title: string, markdown: string): Promise<void
 
     // Calculate content height
     const contentLines = doc.splitTextToSize(cleanedContent, contentWidth - 10)
-    const sectionHeight = Math.max(lineHeight * 2, contentLines.length * lineHeight)
+    const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-    // Draw section border
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin, y, keyPointsWidth, sectionHeight)
-    doc.rect(margin + keyPointsWidth, y, contentWidth, sectionHeight)
+    const headingHeight = headingLines.length * lineHeight
+    const contentHeight = contentLines.length * lineHeight
+    const sectionHeight = Math.max(headingHeight, contentHeight) + 5
+
+    // Draw section with very light borders
+    doc.setDrawColor(230, 230, 230) // Extra light gray for borders
+
+    // Draw vertical divider between key points and notes
+    doc.line(margin + keyPointsWidth, y, margin + keyPointsWidth, y + sectionHeight)
+
+    // Draw horizontal line at the bottom of the section
+    if (index < sections.length - 1) {
+      doc.line(margin, y + sectionHeight, margin + keyPointsWidth + contentWidth, y + sectionHeight)
+    }
 
     // Add content
-    doc.setFontSize(12)
-    doc.text(section.heading, margin + 5, y + 7)
+    doc.setFontSize(11)
+    doc.text(headingLines, margin + 5, y + 5)
 
     doc.setFontSize(10)
-    doc.text(contentLines, margin + keyPointsWidth + 5, y + 7)
+    doc.text(contentLines, margin + keyPointsWidth + 5, y + 5)
 
     y += sectionHeight
   })
