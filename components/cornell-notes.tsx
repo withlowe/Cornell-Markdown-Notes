@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface CornellNotesProps {
   markdown: string
@@ -87,8 +89,77 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
             </div>
 
             <div className={`py-4 px-4 relative ${index % 2 === 0 ? "bg-muted/10" : "bg-background"}`}>
-              {/* Render markdown content with ReactMarkdown */}
-              <div className="markdown-content" dangerouslySetInnerHTML={{ __html: processContent(section.content) }} />
+              {/* First render any HTML content directly */}
+              <div
+                className="html-content"
+                dangerouslySetInnerHTML={{
+                  __html: renderHtmlContent(section.content),
+                }}
+              />
+
+              {/* Then render markdown content with ReactMarkdown */}
+              <div className="markdown-content">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // Style the markdown elements
+                    p: ({ node, ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+                    ul: ({ node, ...props }) => <ul className="list-disc pl-6 mb-4 last:mb-0" {...props} />,
+                    ol: ({ node, ...props }) => <ol className="list-decimal pl-6 mb-4 last:mb-0" {...props} />,
+                    li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                    h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mb-4" {...props} />,
+                    h2: ({ node, ...props }) => <h2 className="text-xl font-bold mb-3" {...props} />,
+                    h3: ({ node, ...props }) => <h3 className="text-lg font-bold mb-3" {...props} />,
+                    h4: ({ node, ...props }) => <h4 className="text-base font-bold mb-2" {...props} />,
+                    a: ({ node, ...props }) => <a className="text-primary underline" {...props} />,
+                    blockquote: ({ node, ...props }) => (
+                      <blockquote className="border-l-4 border-muted-foreground/30 pl-4 italic mb-4" {...props} />
+                    ),
+                    code: ({ node, inline, ...props }) =>
+                      inline ? (
+                        <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono" {...props} />
+                      ) : (
+                        <code
+                          className="block bg-muted p-3 rounded-md text-sm font-mono overflow-x-auto mb-4"
+                          {...props}
+                        />
+                      ),
+                    pre: ({ node, ...props }) => <pre className="mb-4 last:mb-0" {...props} />,
+                    table: ({ node, ...props }) => (
+                      <div className="overflow-x-auto mb-4 last:mb-0">
+                        <table className="w-full border-collapse" {...props} />
+                      </div>
+                    ),
+                    thead: ({ node, ...props }) => <thead className="bg-muted/50" {...props} />,
+                    tbody: ({ node, ...props }) => <tbody {...props} />,
+                    tr: ({ node, ...props }) => <tr className="border-b border-border last:border-0" {...props} />,
+                    th: ({ node, ...props }) => <th className="px-4 py-2 text-left font-medium" {...props} />,
+                    td: ({ node, ...props }) => (
+                      <td className="px-4 py-2 border-r border-border last:border-0" {...props} />
+                    ),
+                    img: ({ node, src, alt, ...props }) => {
+                      // Don't render the image if src is empty
+                      if (!src) return null
+
+                      return (
+                        <img
+                          src={src || "/placeholder.svg"}
+                          alt={alt || "Image"}
+                          className="max-w-full h-auto rounded-md my-4"
+                          loading="lazy"
+                          onError={(e) => {
+                            console.error("Image failed to load:", src)
+                            ;(e.target as HTMLImageElement).src = "/system-error-screen.png"
+                            ;(e.target as HTMLImageElement).alt = "Error loading image"
+                          }}
+                        />
+                      )
+                    },
+                  }}
+                >
+                  {removeHtmlContent(section.content)}
+                </ReactMarkdown>
+              </div>
 
               {/* Bottom border that separates sections */}
               {index < sections.length - 1 && (
@@ -102,55 +173,25 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
   )
 }
 
-// Process content to handle both markdown and HTML
-function processContent(content: string): string {
-  // First, let's handle any HTML img tags that might be in the content
-  // We'll leave these as is since they're already HTML
+// Extract and render HTML content
+function renderHtmlContent(content: string): string {
+  // Extract HTML image tags
+  const imgRegex = /<img.*?\/>/g
+  const matches = content.match(imgRegex)
 
-  // Then, process the markdown content
-  const processedContent = content
-    // Process markdown images ![alt](src)
-    .replace(
-      /!\[(.*?)\]$$(.*?)$$/g,
-      '<img src="$2" alt="$1" class="max-w-full h-auto rounded-md my-4" loading="lazy" />',
-    )
+  if (!matches) return ""
 
-    // Process markdown links [text](url)
-    .replace(/\[(.*?)\]$$(.*?)$$/g, '<a href="$2" class="text-primary underline">$1</a>')
-
-    // Process headings
-    .replace(/^### (.*?)$/gm, '<h3 class="text-lg font-bold mb-3">$1</h3>')
-    .replace(/^## (.*?)$/gm, '<h2 class="text-xl font-bold mb-3">$1</h2>')
-    .replace(/^# (.*?)$/gm, '<h1 class="text-2xl font-bold mb-4">$1</h1>')
-
-    // Process lists
-    .replace(/^\* (.*?)$/gm, '<li class="mb-1">$1</li>')
-    .replace(/^- (.*?)$/gm, '<li class="mb-1">$1</li>')
-    .replace(/^(\d+)\. (.*?)$/gm, '<li class="mb-1">$2</li>')
-
-    // Process paragraphs (lines that aren't part of other elements)
-    .replace(/^([^<\n].+)$/gm, '<p class="mb-4 last:mb-0">$1</p>')
-
-    // Wrap lists
-    .replace(/(<li.*?<\/li>\n)+/g, (match) => {
-      if (match.includes("^d+.")) {
-        return `<ol class="list-decimal pl-6 mb-4 last:mb-0">${match}</ol>`
-      }
-      return `<ul class="list-disc pl-6 mb-4 last:mb-0">${match}</ul>`
+  // Return the HTML for these images with proper styling
+  return matches
+    .map((img) => {
+      // Add classes to the image for styling
+      return img.replace("<img", '<img class="max-w-full h-auto rounded-md my-4"')
     })
+    .join("\n")
+}
 
-    // Process bold and italic
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-
-    // Process code blocks
-    .replace(
-      /```([\s\S]*?)```/g,
-      '<pre class="mb-4 last:mb-0"><code class="block bg-muted p-3 rounded-md text-sm font-mono overflow-x-auto mb-4">$1</code></pre>',
-    )
-
-    // Process inline code
-    .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-sm font-mono">$1</code>')
-
-  return processedContent
+// Remove HTML content from markdown to prevent duplication
+function removeHtmlContent(content: string): string {
+  // Remove HTML image tags from the content to prevent them from being rendered as text
+  return content.replace(/<img.*?\/>/g, "")
 }

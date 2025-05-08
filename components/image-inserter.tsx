@@ -34,18 +34,20 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
       if (!imageUrl.trim()) {
         return // Don't insert if URL is empty
       }
-      markdown = `![${altText}](${imageUrl})`
+      // Use HTML img tag directly for better compatibility
+      markdown = `<img src="${imageUrl}" alt="${altText || "Image"}" />\n`
     } else if (activeTab === "placeholder") {
       // For placeholder images
       const query = encodeURIComponent(placeholderQuery || "abstract")
-      markdown = `![${altText}](/placeholder.svg?height=${placeholderHeight}&width=${placeholderWidth}&query=${query})`
+      const placeholderUrl = `/placeholder.svg?height=${placeholderHeight}&width=${placeholderWidth}&query=${query}`
+      // Use HTML img tag directly for better compatibility
+      markdown = `<img src="${placeholderUrl}" alt="${altText || "Placeholder image"}" />\n`
     } else if (activeTab === "upload" && uploadedImage) {
-      // For uploaded images - use a simpler approach with direct HTML
-      // This bypasses ReactMarkdown's handling of data URLs which might be causing issues
-      markdown = `<img src="${uploadedImage}" alt="${altText || uploadedFileName}" />`
+      // For uploaded images - use HTML img tag directly
+      markdown = `<img src="${uploadedImage}" alt="${altText || uploadedFileName || "Uploaded image"}" />\n`
     }
 
-    console.log("Inserting markdown:", markdown.substring(0, 50) + "...")
+    console.log("Inserting image HTML:", markdown)
     onInsert(markdown)
     resetForm()
     onClose()

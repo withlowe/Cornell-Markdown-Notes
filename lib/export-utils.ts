@@ -63,6 +63,68 @@ function parseMarkdown(markdown: string): Section[] {
   return sections
 }
 
+// Extract image URLs from markdown and HTML
+function extractImageUrls(content: string): string[] {
+  const urls: string[] = []
+
+  // Extract markdown image URLs
+  const markdownRegex = /!\[(.*?)\]$$(.*?)$$/g
+  let match
+  while ((match = markdownRegex.exec(content)) !== null) {
+    if (match[2] && !match[2].startsWith("data:")) {
+      urls.push(match[2])
+    }
+  }
+
+  // Extract HTML image URLs
+  const htmlRegex = /<img.*?src=["'](.*?)["'].*?>/g
+  while ((match = htmlRegex.exec(content)) !== null) {
+    if (match[1] && !match[1].startsWith("data:")) {
+      urls.push(match[1])
+    }
+  }
+
+  return urls
+}
+
+// Convert blob URLs to data URLs for PDF export
+async function convertBlobUrlsToDataUrls(content: string): Promise<string> {
+  let processedContent = content
+
+  // Extract all image URLs
+  const imageUrls = extractImageUrls(content)
+
+  // Convert each blob URL to a data URL
+  for (const url of imageUrls) {
+    if (url.startsWith("blob:")) {
+      try {
+        const response = await fetch(url)
+        const blob = await response.blob()
+        const reader = new FileReader()
+
+        const dataUrl = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(blob)
+        })
+
+        // Replace the blob URL with the data URL in both markdown and HTML formats
+        processedContent = processedContent.replace(
+          new RegExp(`\\]\$$${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\$$`, "g"),
+          `](${dataUrl})`,
+        )
+        processedContent = processedContent.replace(
+          new RegExp(`src=["']${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`, "g"),
+          `src="${dataUrl}"`,
+        )
+      } catch (error) {
+        console.error(`Failed to convert blob URL to data URL: ${url}`, error)
+      }
+    }
+  }
+
+  return processedContent
+}
+
 // Clean markdown text for rendering
 function cleanMarkdown(text: string): string {
   // Remove bold and italic markers but keep the text
@@ -332,6 +394,43 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
       continue
     }
 
+    // Check for HTML image tags
+    if (line.includes("<img") && line.includes("src=")) {
+      // Extract the image URL and alt text
+      const srcMatch = line.match(/src=["'](.*?)["']/)
+      const altMatch = line.match(/alt=["'](.*?)["']/)
+
+      if (srcMatch) {
+        // Add a placeholder for the image
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Image: ${altMatch ? altMatch[1] : "Image"}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += lineHeight * 2
+      }
+
+      i++
+      continue
+    }
+
+    // Check for markdown images
+    if (line.includes("![") && line.includes("](")) {
+      // Extract the image URL and alt text
+      const match = line.match(/!\[(.*?)\]$$(.*?)$$/)
+
+      if (match) {
+        // Add a placeholder for the image
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Image: ${match[1] || "Image"}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += lineHeight * 2
+      }
+
+      i++
+      continue
+    }
+
     // Regular paragraph text
     const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
     doc.text(textLines, x, currentY)
@@ -342,113 +441,188 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
   return currentY
 }
 
-// Export to PDF with improved markdown rendering
-export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
-  const sections = parseMarkdown(markdown)
+// Add images to PDF
+async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): Promise<number> {
+  let currentY = y
+  const lineHeight = 20 // Default height for images
 
-  // Create a new PDF document
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  })
+  // Extract all image URLs (both markdown and HTML)
+  const markdownImageRegex = /!\[(.*?)\]$$(.*?)$$/g
+  const htmlImageRegex = /<img.*?src=["'](.*?)["'].*?>/g
 
-  // Set title
-  doc.setFontSize(16)
-  doc.text(title, 15, 15)
+  let match
+  const imagesToAdd = []
 
-  // Add summary if provided - removed the "Summary:" label
-  let y = 25 // Increased spacing after title
-  if (summary) {
-    doc.setFontSize(10)
-    // Removed the "Summary:" label, just show the summary content directly
-    const summaryLines = doc.splitTextToSize(summary, 180)
-    doc.text(summaryLines, 15, y)
-    y += summaryLines.length * 5 + 10 // Increased spacing after summary
-  } else {
-    y = 30 // More spacing if no summary
+  // Find markdown images
+  while ((match = markdownImageRegex.exec(content)) !== null) {
+    const alt = match[1]
+    const src = match[2]
+    if (src) {
+      imagesToAdd.push({ src, alt })
+    }
   }
 
-  // Draw the Cornell note structure
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 15
-  const keyPointsWidth = 45
-  const contentWidth = pageWidth - margin - keyPointsWidth - margin
+  // Find HTML images
+  while ((match = htmlImageRegex.exec(content)) !== null) {
+    const src = match[1]
+    // Extract alt text if available
+    const altMatch = match[0].match(/alt=["'](.*?)["']/)
+    const alt = altMatch ? altMatch[1] : ""
 
-  // Draw header - no shading, just text
-  doc.setFontSize(10)
-  doc.text("Key Points", margin + 5, y)
-  doc.text("Notes", margin + keyPointsWidth + 5, y)
+    if (src) {
+      imagesToAdd.push({ src, alt })
+    }
+  }
 
-  // Draw a single light horizontal line under the header
-  doc.setDrawColor(220, 220, 220) // Very light gray
-  doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
+  // Add each image to the PDF
+  for (const image of imagesToAdd) {
+    try {
+      // For all image types, add a placeholder text
+      doc.setFontSize(9)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`[Image: ${image.alt || "Image"}]`, x, currentY)
+      doc.setTextColor(0, 0, 0)
+      currentY += lineHeight
+    } catch (error) {
+      console.error(`Failed to add image to PDF: ${image.src}`, error)
+      // Add a placeholder for failed images
+      doc.setFontSize(9)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
+      doc.setTextColor(0, 0, 0)
+      currentY += lineHeight
+    }
+  }
 
-  // Draw content with minimal styling
-  y += 5
+  return currentY
+}
 
-  sections.forEach((section, index) => {
-    // Check if we need a new page
-    if (y + 20 > pageHeight - margin) {
-      doc.addPage()
-      y = margin
+// Export to PDF with improved markdown rendering
+export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
+  try {
+    // First, process the markdown to convert any blob URLs to data URLs
+    const processedMarkdown = await convertBlobUrlsToDataUrls(markdown)
 
-      // Redraw header on new page - just text, no shading
+    const sections = parseMarkdown(processedMarkdown)
+
+    // Create a new PDF document
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    })
+
+    // Set title
+    doc.setFontSize(16)
+    doc.text(title, 15, 15)
+
+    // Add summary if provided - removed the "Summary:" label
+    let y = 25 // Increased spacing after title
+    if (summary) {
       doc.setFontSize(10)
-      doc.text("Key Points", margin + 5, y + 5)
-      doc.text("Notes", margin + keyPointsWidth + 5, y + 5)
-
-      // Draw a single light horizontal line under the header
-      doc.setDrawColor(220, 220, 220) // Very light gray
-      doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
-
-      y += 10
+      // Removed the "Summary:" label, just show the summary content directly
+      const summaryLines = doc.splitTextToSize(summary, 180)
+      doc.text(summaryLines, 15, y)
+      y += summaryLines.length * 5 + 10 // Increased spacing after summary
+    } else {
+      y = 30 // More spacing if no summary
     }
 
-    const startY = y
+    // Draw the Cornell note structure
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 15
+    const keyPointsWidth = 45
+    const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
-    // Draw key point (heading)
-    doc.setFontSize(11)
-    doc.setFont(undefined, "bold")
-    const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
-    doc.text(headingLines, margin + 5, y + 5)
-    doc.setFont(undefined, "normal")
-
-    // Calculate heading height
-    const headingHeight = headingLines.length * 7 + 5
-
-    // Draw content with improved markdown rendering
+    // Draw header - no shading, just text
     doc.setFontSize(10)
-    const contentEndY = renderMarkdownContent(
-      doc,
-      section.content,
-      margin + keyPointsWidth + 5,
-      y + 5,
-      contentWidth - 10,
-    )
+    doc.text("Key Points", margin + 5, y)
+    doc.text("Notes", margin + keyPointsWidth + 5, y)
 
-    // Calculate section height
-    const sectionHeight = Math.max(headingHeight, contentEndY - y)
+    // Draw a single light horizontal line under the header
+    doc.setDrawColor(220, 220, 220) // Very light gray
+    doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
 
-    // Draw section with very light borders
-    doc.setDrawColor(230, 230, 230) // Extra light gray for borders
+    // Draw content with minimal styling
+    y += 5
 
-    // Draw vertical divider between key points and notes
-    doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, startY + sectionHeight)
+    for (let index = 0; index < sections.length; index++) {
+      const section = sections[index]
 
-    // Draw horizontal line at the bottom of the section
-    if (index < sections.length - 1) {
-      doc.line(margin, startY + sectionHeight, margin + keyPointsWidth + contentWidth, startY + sectionHeight)
+      // Check if we need a new page
+      if (y + 20 > pageHeight - margin) {
+        doc.addPage()
+        y = margin
+
+        // Redraw header on new page - just text, no shading
+        doc.setFontSize(10)
+        doc.text("Key Points", margin + 5, y + 5)
+        doc.text("Notes", margin + keyPointsWidth + 5, y + 5)
+
+        // Draw a single light horizontal line under the header
+        doc.setDrawColor(220, 220, 220) // Very light gray
+        doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
+
+        y += 10
+      }
+
+      const startY = y
+
+      // Draw key point (heading)
+      doc.setFontSize(11)
+      doc.setFont(undefined, "bold")
+      const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
+      doc.text(headingLines, margin + 5, y + 5)
+      doc.setFont(undefined, "normal")
+
+      // Calculate heading height
+      const headingHeight = headingLines.length * 7 + 5
+
+      // Draw content with improved markdown rendering
+      doc.setFontSize(10)
+      const contentEndY = renderMarkdownContent(
+        doc,
+        section.content,
+        margin + keyPointsWidth + 5,
+        y + 5,
+        contentWidth - 10,
+      )
+
+      // Add images after the text content
+      const imagesEndY = await addImagesToPdf(
+        doc,
+        section.content,
+        margin + keyPointsWidth + 5,
+        contentEndY + 5,
+        contentWidth - 10,
+      )
+
+      // Calculate section height
+      const sectionHeight = Math.max(headingHeight, imagesEndY - y)
+
+      // Draw section with very light borders
+      doc.setDrawColor(230, 230, 230) // Extra light gray for borders
+
+      // Draw vertical divider between key points and notes
+      doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, startY + sectionHeight)
+
+      // Draw horizontal line at the bottom of the section
+      if (index < sections.length - 1) {
+        doc.line(margin, startY + sectionHeight, margin + keyPointsWidth + contentWidth, startY + sectionHeight)
+      }
+
+      // Update y position for next section
+      y = startY + sectionHeight + 3
     }
 
-    // Update y position for next section
-    y = startY + sectionHeight + 3
-  })
+    // Generate the PDF as a blob
+    const pdfBlob = doc.output("blob")
 
-  // Generate the PDF as a blob
-  const pdfBlob = doc.output("blob")
-
-  // Download the PDF
-  downloadBlob(pdfBlob, `${title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+    // Download the PDF
+    downloadBlob(pdfBlob, `${title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+  } catch (error) {
+    console.error("Error generating PDF:", error)
+    throw new Error(`Failed to generate PDF: ${error instanceof Error ? error.message : "Unknown error"}`)
+  }
 }
