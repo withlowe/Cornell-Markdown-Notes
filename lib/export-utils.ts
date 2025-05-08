@@ -264,14 +264,14 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
     // Check for code blocks
     if (line.trim().startsWith("```")) {
       const codeLines = []
-      i++ // Skip the opening ```
+      i++ // Skip the opening \`\`\`
 
       while (i < lines.length && !lines[i].trim().startsWith("```")) {
         codeLines.push(lines[i])
         i++
       }
 
-      i++ // Skip the closing ```
+      i++ // Skip the closing \`\`\`
       currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth)
       continue
     }
@@ -357,13 +357,11 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
   doc.setFontSize(16)
   doc.text(title, 15, 15)
 
-  // Add summary if provided
+  // Add summary if provided - removed the "Summary:" label
   let y = 25 // Increased spacing after title
   if (summary) {
     doc.setFontSize(10)
-    doc.text("Summary:", 15, y)
-    y += 7 // Increased spacing before summary content
-
+    // Removed the "Summary:" label, just show the summary content directly
     const summaryLines = doc.splitTextToSize(summary, 180)
     doc.text(summaryLines, 15, y)
     y += summaryLines.length * 5 + 10 // Increased spacing after summary
