@@ -19,6 +19,7 @@ export default function NotesApp() {
   const { toast } = useToast()
   const [id, setId] = useState<string | null>(null)
   const [title, setTitle] = useState<string>("Untitled Note")
+  const [summary, setSummary] = useState<string>("")
   const [tags, setTags] = useState<string[]>([])
   const [markdown, setMarkdown] = useState<string>(
     `# Introduction to React
@@ -76,6 +77,7 @@ State is data that changes over time. When state changes, React re-renders the c
       if (doc) {
         setId(docId)
         setTitle(doc.title)
+        setSummary(doc.summary || "")
         setTags(doc.tags)
         setMarkdown(doc.content)
       }
@@ -86,6 +88,7 @@ State is data that changes over time. When state changes, React re-renders the c
     const docId = saveDocument({
       id: id || undefined,
       title,
+      summary,
       tags,
       content: markdown,
       createdAt: new Date().toISOString(),
@@ -101,7 +104,7 @@ State is data that changes over time. When state changes, React re-renders the c
 
   const handleExportPdf = async () => {
     try {
-      await exportToPdf(title, markdown)
+      await exportToPdf(title, summary, markdown)
 
       toast({
         title: "PDF exported",
@@ -143,6 +146,7 @@ State is data that changes over time. When state changes, React re-renders the c
             onClick={() => {
               setId(null)
               setTitle("Untitled Note")
+              setSummary("")
               setTags([])
               setMarkdown("")
             }}
@@ -156,7 +160,7 @@ State is data that changes over time. When state changes, React re-renders the c
       <div className="grid grid-cols-1 gap-4 mb-6">
         <Card>
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <Label htmlFor="title" className="mb-2 block">
                   Title
@@ -169,6 +173,19 @@ State is data that changes over time. When state changes, React re-renders the c
                 </Label>
                 <TagInput id="tags" tags={tags} setTags={setTags} placeholder="Add tags..." />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="summary" className="mb-2 block">
+                Summary
+              </Label>
+              <Textarea
+                id="summary"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder="Brief summary of your note"
+                className="resize-none h-20"
+              />
             </div>
           </CardContent>
         </Card>

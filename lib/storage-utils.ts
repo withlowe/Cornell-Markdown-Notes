@@ -1,6 +1,7 @@
 export interface DocumentData {
   id: string
   title: string
+  summary?: string
   content: string
   tags: string[]
   createdAt: string
