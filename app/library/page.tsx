@@ -445,7 +445,11 @@ export default function LibraryPage() {
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
-                <Button variant="destructive" onClick={() => handleDelete(activeDocument.id)}>
+                <Button
+                  variant="default"
+                  className="bg-black hover:bg-black/90 text-white dark:bg-white dark:text-black dark:hover:bg-white/90"
+                  onClick={() => handleDelete(activeDocument.id)}
+                >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
                 </Button>
