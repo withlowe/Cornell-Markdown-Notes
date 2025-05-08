@@ -32,7 +32,7 @@ export function TagInput({ id, tags, setTags, placeholder = "Add tag..." }: TagI
   }
 
   return (
-    <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+    <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-background">
       {tags.map((tag) => (
         <Badge key={tag} variant="secondary" className="flex items-center gap-1 uppercase">
           {tag}
@@ -46,7 +46,7 @@ export function TagInput({ id, tags, setTags, placeholder = "Add tag..." }: TagI
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className="flex-1 min-w-[120px] border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        className="flex-1 min-w-[120px] border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
       />
     </div>
   )

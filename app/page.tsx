@@ -91,27 +91,21 @@ Here's a simple list of React concepts:
   }
 
   return (
-    <main className="container mx-auto p-4 max-w-6xl flex flex-col min-h-screen">
+    <main className="container mx-auto p-4 max-w-6xl flex flex-col min-h-screen bg-background text-foreground">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            className="button-black-outline"
-            onClick={() => router.push("/library")}
-          >
+          <Button variant="outline" size="icon" onClick={() => router.push("/library")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-3xl font-bold">Notes</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="button-black-outline" onClick={() => router.push("/library")}>
+          <Button variant="outline" onClick={() => router.push("/library")}>
             <BookOpen className="mr-2 h-4 w-4" />
             Library
           </Button>
           <Button
             variant="outline"
-            className="button-black-outline"
             onClick={() => {
               setId(null)
               setTitle("Untitled Note")
@@ -167,7 +161,7 @@ Here's a simple list of React concepts:
             <Textarea
               value={markdown}
               onChange={(e) => setMarkdown(e.target.value)}
-              className="flex-1 min-h-0 font-mono resize-none"
+              className="flex-1 min-h-0 font-mono resize-none bg-background"
               placeholder="Enter your markdown notes here..."
             />
             <div className="mt-2 text-sm text-muted-foreground">
@@ -187,11 +181,11 @@ Here's a simple list of React concepts:
       </div>
 
       <div className="flex justify-end gap-2 mt-auto pt-2">
-        <Button variant="outline" className="button-black-outline" onClick={handleExportPdf}>
+        <Button variant="outline" onClick={handleExportPdf}>
           <FileDown className="mr-2 h-4 w-4" />
           Export PDF
         </Button>
-        <Button className="button-black" onClick={handleSave}>
+        <Button onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" />
           Save to Library
         </Button>

@@ -63,10 +63,10 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
   return (
     <div className="border rounded-md overflow-hidden">
       {/* Changed to a table-like layout for better alignment */}
-      <div className="grid grid-cols-[1fr_3fr] divide-x">
+      <div className="grid grid-cols-[1fr_3fr] divide-x divide-border">
         {/* Header row */}
-        <div className="bg-muted p-4 font-medium text-sm uppercase text-center border-b">Key Points</div>
-        <div className="bg-muted p-4 font-medium text-sm uppercase text-center border-b">Notes</div>
+        <div className="bg-muted p-4 font-medium text-sm uppercase text-center border-b border-border">Key Points</div>
+        <div className="bg-muted p-4 font-medium text-sm uppercase text-center border-b border-border">Notes</div>
 
         {/* Content rows - each row contains a heading and its content */}
         {sections.map((section, index) => (

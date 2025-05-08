@@ -165,17 +165,17 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-white text-black">
+    <div className="flex min-h-screen bg-background text-foreground">
       {/* Documentation-style sidebar */}
-      <aside className="hidden md:flex w-64 flex-col border-r border-gray-200 min-h-screen">
-        <div className="p-4 border-b border-gray-200 flex flex-col gap-2">
+      <aside className="hidden md:flex w-64 flex-col border-r border-border min-h-screen">
+        <div className="p-4 border-b border-border flex flex-col gap-2">
           <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
             <BookOpen className="h-5 w-5" />
             Notes
           </Link>
 
           {/* Moved Add Note button to top */}
-          <Button className="w-full bg-black text-white hover:bg-gray-800" onClick={() => router.push("/")}>
+          <Button className="w-full" onClick={() => router.push("/")}>
             <PlusCircle className="mr-2 h-4 w-4" />
             New Note
           </Button>
@@ -183,10 +183,10 @@ export default function LibraryPage() {
 
         <div className="p-4">
           <div className="relative mb-4">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search notes..."
-              className="pl-8 border-gray-300"
+              className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -207,10 +207,7 @@ export default function LibraryPage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-between border-gray-300 text-black hover:bg-gray-100"
-                >
+                <Button variant="outline" className="w-full justify-between">
                   {selectedTags.length > 0
                     ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
                     : "Select tags"}
@@ -240,7 +237,7 @@ export default function LibraryPage() {
             {selectedTags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {selectedTags.map((tag) => (
-                  <Badge key={tag} variant="default" className="bg-black text-white hover:bg-gray-800 uppercase">
+                  <Badge key={tag} className="uppercase">
                     {tag}
                     <X className="ml-1 h-3 w-3 cursor-pointer" onClick={() => toggleTag(tag)} />
                   </Badge>
@@ -257,7 +254,9 @@ export default function LibraryPage() {
                   key={doc.id}
                   className={cn(
                     "w-full text-left px-2 py-1.5 text-sm rounded-md",
-                    activeDocument?.id === doc.id ? "bg-gray-200 text-black font-medium" : "hover:bg-gray-100",
+                    activeDocument?.id === doc.id
+                      ? "bg-accent text-accent-foreground font-medium"
+                      : "hover:bg-accent/50",
                   )}
                   onClick={() => setActiveDocument(doc)}
                 >
@@ -265,28 +264,18 @@ export default function LibraryPage() {
                 </button>
               ))
             ) : (
-              <div className="text-sm text-gray-500">No documents found</div>
+              <div className="text-sm text-muted-foreground">No documents found</div>
             )}
           </div>
         </div>
 
-        <div className="mt-auto p-4 border-t border-gray-200 flex flex-col gap-2">
+        <div className="mt-auto p-4 border-t border-border flex flex-col gap-2">
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
-              onClick={handleExportAll}
-              disabled={isExporting}
-            >
+            <Button variant="outline" className="flex-1" onClick={handleExportAll} disabled={isExporting}>
               <Download className="mr-2 h-4 w-4" />
               Export All
             </Button>
-            <Button
-              variant="outline"
-              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
-              onClick={handleImportClick}
-              disabled={isImporting}
-            >
+            <Button variant="outline" className="flex-1" onClick={handleImportClick} disabled={isImporting}>
               <Upload className="mr-2 h-4 w-4" />
               Import
             </Button>
@@ -303,35 +292,30 @@ export default function LibraryPage() {
       </aside>
 
       {/* Main content area */}
-      <main className="flex-1 overflow-auto bg-white">
+      <main className="flex-1 overflow-auto bg-background">
         {/* Mobile header */}
-        <header className="md:hidden flex items-center justify-between p-4 border-b border-gray-200">
+        <header className="md:hidden flex items-center justify-between p-4 border-b border-border">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <BookOpen className="h-5 w-5" />
             Notes
           </Link>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-gray-300 text-black hover:bg-gray-100"
-              onClick={() => router.push("/")}
-            >
+            <Button variant="outline" size="sm" onClick={() => router.push("/")}>
               <Home className="h-4 w-4" />
             </Button>
-            <Button size="sm" className="bg-black text-white hover:bg-gray-800" onClick={() => router.push("/")}>
+            <Button size="sm" onClick={() => router.push("/")}>
               <PlusCircle className="h-4 w-4" />
             </Button>
           </div>
         </header>
 
         {/* Mobile search and filters */}
-        <div className="md:hidden p-4 border-b border-gray-200">
+        <div className="md:hidden p-4 border-b border-border">
           <div className="relative mb-4">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search notes..."
-              className="pl-8 border-gray-300"
+              className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -352,10 +336,7 @@ export default function LibraryPage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-between border-gray-300 text-black hover:bg-gray-100"
-                >
+                <Button variant="outline" className="w-full justify-between">
                   {selectedTags.length > 0
                     ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
                     : "Select tags"}
@@ -385,7 +366,7 @@ export default function LibraryPage() {
             {selectedTags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {selectedTags.map((tag) => (
-                  <Badge key={tag} variant="default" className="bg-black text-white hover:bg-gray-800 uppercase">
+                  <Badge key={tag} className="uppercase">
                     {tag}
                     <X className="ml-1 h-3 w-3 cursor-pointer" onClick={() => toggleTag(tag)} />
                   </Badge>
@@ -396,23 +377,11 @@ export default function LibraryPage() {
 
           {/* Mobile import/export buttons */}
           <div className="flex gap-2 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
-              onClick={handleExportAll}
-              disabled={isExporting}
-            >
+            <Button variant="outline" size="sm" className="flex-1" onClick={handleExportAll} disabled={isExporting}>
               <Download className="mr-2 h-4 w-4" />
               Export All
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 border-gray-300 text-black hover:bg-gray-100"
-              onClick={handleImportClick}
-              disabled={isImporting}
-            >
+            <Button variant="outline" size="sm" className="flex-1" onClick={handleImportClick} disabled={isImporting}>
               <Upload className="mr-2 h-4 w-4" />
               Import
             </Button>
@@ -422,18 +391,18 @@ export default function LibraryPage() {
         {/* Document list (mobile only) */}
         <div className="md:hidden">
           {filteredDocuments.length > 0 ? (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-border">
               {filteredDocuments.map((doc) => (
                 <div
                   key={doc.id}
-                  className="p-4 cursor-pointer hover:bg-gray-50"
+                  className="p-4 cursor-pointer hover:bg-accent/50"
                   onClick={() => setActiveDocument(doc)}
                 >
                   <div className="font-medium mb-1">{doc.title}</div>
-                  {doc.summary && <div className="text-sm text-gray-600 mb-2">{doc.summary}</div>}
+                  {doc.summary && <div className="text-sm text-muted-foreground mb-2">{doc.summary}</div>}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {doc.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs uppercase bg-gray-100 text-gray-800">
+                      <Badge key={tag} variant="secondary" className="text-xs uppercase">
                         {tag}
                       </Badge>
                     ))}
@@ -444,12 +413,12 @@ export default function LibraryPage() {
           ) : (
             <div className="text-center p-12">
               <h3 className="text-lg font-medium mb-2">No documents found</h3>
-              <p className="text-gray-500 mb-4">
+              <p className="text-muted-foreground mb-4">
                 {searchTerm || selectedTags.length > 0
                   ? "Try adjusting your search or filters"
                   : "Create your first note to get started"}
               </p>
-              <Button className="bg-black text-white hover:bg-gray-800" onClick={() => router.push("/")}>
+              <Button onClick={() => router.push("/")}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create New Note
               </Button>
@@ -465,26 +434,18 @@ export default function LibraryPage() {
                 <h1 className="text-3xl font-bold">{activeDocument.title}</h1>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {activeDocument.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="uppercase bg-gray-100 text-gray-800">
+                    <Badge key={tag} variant="secondary" className="uppercase">
                       {tag}
                     </Badge>
                   ))}
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="border-gray-300 text-black hover:bg-gray-100"
-                  onClick={() => router.push(`/?id=${activeDocument.id}`)}
-                >
+                <Button variant="outline" onClick={() => router.push(`/?id=${activeDocument.id}`)}>
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
-                <Button
-                  variant="destructive"
-                  className="bg-black text-white hover:bg-gray-800"
-                  onClick={() => handleDelete(activeDocument.id)}
-                >
+                <Button variant="destructive" onClick={() => handleDelete(activeDocument.id)}>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
                 </Button>
@@ -493,16 +454,16 @@ export default function LibraryPage() {
 
             {/* Summary section */}
             {activeDocument.summary && (
-              <Card className="mb-6 border border-gray-200">
+              <Card className="mb-6">
                 <CardContent className="p-4">
                   <h2 className="text-lg font-semibold mb-2">Summary</h2>
-                  <p className="text-gray-700">{activeDocument.summary}</p>
+                  <p className="text-foreground">{activeDocument.summary}</p>
                 </CardContent>
               </Card>
             )}
 
             {/* Table of contents */}
-            <Card className="mb-8 border border-gray-200">
+            <Card className="mb-8">
               <CardContent className="p-4">
                 <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
                   <FileText className="h-4 w-4" />
@@ -525,12 +486,12 @@ export default function LibraryPage() {
           <div className="flex items-center justify-center h-[calc(100vh-4rem)] md:h-screen">
             <div className="text-center p-12">
               <h3 className="text-lg font-medium mb-2">No document selected</h3>
-              <p className="text-gray-500 mb-4">
+              <p className="text-muted-foreground mb-4">
                 {filteredDocuments.length > 0
                   ? "Select a document from the sidebar to view"
                   : "Create your first note to get started"}
               </p>
-              <Button className="bg-black text-white hover:bg-gray-800" onClick={() => router.push("/")}>
+              <Button onClick={() => router.push("/")}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create New Note
               </Button>
