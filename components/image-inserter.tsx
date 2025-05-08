@@ -26,6 +26,7 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Update the handleInsert function to ensure images are properly formatted for PDF export
   const handleInsert = () => {
     let markdown = ""
 
