@@ -444,8 +444,7 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
 // Add images to PDF
 async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): Promise<number> {
   let currentY = y
-  const imageMargin = 10 // Space between images
-  const maxImageHeight = 100 // Maximum height for images in the PDF
+  const lineHeight = 20 // Default height for images
 
   // Extract all image URLs (both markdown and HTML)
   const markdownImageRegex = /!\[(.*?)\]$$(.*?)$$/g
@@ -478,83 +477,12 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
   // Add each image to the PDF
   for (const image of imagesToAdd) {
     try {
-      // Skip placeholder images
-      if (image.src.includes("/placeholder.svg") || image.src.includes("/generic-placeholder-icon.png")) {
-        doc.setFontSize(9)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`[Placeholder Image: ${image.alt || "Image"}]`, x, currentY)
-        doc.setTextColor(0, 0, 0)
-        currentY += 20
-        continue
-      }
-
-      // For data URLs, we can use them directly
-      if (image.src.startsWith("data:")) {
-        // Add the image to the PDF
-        const imgWidth = Math.min(maxWidth, 150) // Limit width
-        const imgHeight = maxImageHeight // Limit height
-
-        doc.addImage(image.src, "JPEG", x, currentY, imgWidth, imgHeight, undefined, "FAST")
-
-        // Add caption if there's alt text
-        if (image.alt) {
-          doc.setFontSize(8)
-          doc.setTextColor(100, 100, 100)
-          const captionY = currentY + imgHeight + 5
-          doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
-          currentY = captionY + 10
-        } else {
-          currentY += imgHeight + imageMargin
-        }
-        continue
-      }
-
-      // For blob URLs or regular URLs, we need to fetch them
-      let imgData: string
-
-      if (image.src.startsWith("blob:")) {
-        // For blob URLs, fetch and convert to data URL
-        const response = await fetch(image.src)
-        const blob = await response.blob()
-        imgData = await new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.readAsDataURL(blob)
-        })
-      } else if (image.src.startsWith("http")) {
-        // For remote URLs, we'll use a placeholder since we might have CORS issues
-        doc.setFontSize(9)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`[External Image: ${image.alt || image.src}]`, x, currentY)
-        doc.setTextColor(0, 0, 0)
-        currentY += 20
-        continue
-      } else {
-        // For relative URLs (like /images/something.jpg), we'll use a placeholder
-        doc.setFontSize(9)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`[Image: ${image.alt || image.src}]`, x, currentY)
-        doc.setTextColor(0, 0, 0)
-        currentY += 20
-        continue
-      }
-
-      // Add the image to the PDF
-      const imgWidth = Math.min(maxWidth, 150) // Limit width
-      const imgHeight = maxImageHeight // Limit height
-
-      doc.addImage(imgData, "JPEG", x, currentY, imgWidth, imgHeight, undefined, "FAST")
-
-      // Add caption if there's alt text
-      if (image.alt) {
-        doc.setFontSize(8)
-        doc.setTextColor(100, 100, 100)
-        const captionY = currentY + imgHeight + 5
-        doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
-        currentY = captionY + 10
-      } else {
-        currentY += imgHeight + imageMargin
-      }
+      // For all image types, add a placeholder text
+      doc.setFontSize(9)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`[Image: ${image.alt || "Image"}]`, x, currentY)
+      doc.setTextColor(0, 0, 0)
+      currentY += lineHeight
     } catch (error) {
       console.error(`Failed to add image to PDF: ${image.src}`, error)
       // Add a placeholder for failed images
@@ -562,7 +490,7 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
       doc.setTextColor(100, 100, 100)
       doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
       doc.setTextColor(0, 0, 0)
-      currentY += 20
+      currentY += lineHeight
     }
   }
 
