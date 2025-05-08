@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import type React from "react"
+
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -9,9 +11,10 @@ import { CornellNotes } from "@/components/cornell-notes"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { TagInput } from "@/components/tag-input"
+import { TableGenerator } from "@/components/table-generator"
 import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
-import { PlusCircle, Save, FileDown, BookOpen, ArrowLeft } from "lucide-react"
+import { PlusCircle, Save, FileDown, BookOpen, ArrowLeft, Table2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function NotesApp() {
@@ -35,6 +38,8 @@ Here's a simple list of React concepts:
 - JSX
 - Virtual DOM`,
   )
+  const [isTableGeneratorOpen, setIsTableGeneratorOpen] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Check if we're editing an existing document
   useEffect(() => {
@@ -88,6 +93,149 @@ Here's a simple list of React concepts:
         variant: "destructive",
       })
     }
+  }
+
+  const handleInsertTable = (tableMarkdown: string) => {
+    // Insert the table at the current cursor position or at the end
+    const textarea = textareaRef.current
+
+    if (textarea) {
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+
+      const newMarkdown = markdown.substring(0, start) + "\n" + tableMarkdown + "\n" + markdown.substring(end)
+
+      setMarkdown(newMarkdown)
+
+      // Set focus back to textarea
+      setTimeout(() => {
+        textarea.focus()
+        const newCursorPos = start + tableMarkdown.length + 2
+        textarea.setSelectionRange(newCursorPos, newCursorPos)
+      }, 0)
+    } else {
+      // If we can't find the textarea, just append to the end
+      setMarkdown(markdown + "\n\n" + tableMarkdown)
+    }
+
+    toast({
+      title: "Table inserted",
+      description: "Markdown table has been added to your note",
+    })
+  }
+
+  // Handle keyboard input for table detection and formatting
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Check if the user pressed Enter after typing a table row
+    if (e.key === "Enter") {
+      const textarea = textareaRef.current
+      if (!textarea) return
+
+      const value = textarea.value
+      const cursorPos = textarea.selectionStart
+      const currentLine = getCurrentLine(value, cursorPos)
+
+      // Check if the current line is a table row (starts and ends with |)
+      if (isTableRow(currentLine)) {
+        e.preventDefault()
+
+        // Just add a new empty row with the same number of columns
+        // without automatically adding a separator row
+        const columnCount = countColumns(currentLine)
+        const newEmptyRow = createEmptyRow(columnCount)
+
+        const start = textarea.selectionStart
+        const textBeforeCursor = value.substring(0, start)
+        const textAfterCursor = value.substring(start)
+
+        const newValue = textBeforeCursor + "\n" + newEmptyRow
+        setMarkdown(newValue + textAfterCursor)
+
+        // Set cursor position to the empty row
+        setTimeout(() => {
+          const newPos = start + newEmptyRow.length + 1
+          textarea.setSelectionRange(newPos - 2, newPos - 2)
+        }, 0)
+      }
+    }
+
+    // Check if the user typed | to start a table
+    if (e.key === "|") {
+      const textarea = textareaRef.current
+      if (!textarea) return
+
+      const value = textarea.value
+      const cursorPos = textarea.selectionStart
+      const currentLine = getCurrentLine(value, cursorPos)
+
+      // If this is the first | in the line and the line is empty or only has whitespace
+      if (currentLine.trim() === "") {
+        // Don't prevent default, let the | character be typed
+        // But set a timeout to check if we should suggest a table structure
+        setTimeout(() => {
+          // Show a toast suggesting to use the table generator
+          toast({
+            title: "Table detected",
+            description: "Type column headers separated by | or use the table generator for more options",
+            action: (
+              <Button size="sm" onClick={() => setIsTableGeneratorOpen(true)}>
+                Open Generator
+              </Button>
+            ),
+          })
+        }, 100)
+      }
+    }
+  }
+
+  // Helper functions for table detection and formatting
+  const getCurrentLine = (text: string, cursorPos: number): string => {
+    const textBeforeCursor = text.substring(0, cursorPos)
+    const lastNewlineBeforeCursor = textBeforeCursor.lastIndexOf("\n")
+    const lineStart = lastNewlineBeforeCursor === -1 ? 0 : lastNewlineBeforeCursor + 1
+
+    const textAfterCursor = text.substring(cursorPos)
+    const firstNewlineAfterCursor = textAfterCursor.indexOf("\n")
+    const lineEnd = firstNewlineAfterCursor === -1 ? text.length : cursorPos + firstNewlineAfterCursor
+
+    return text.substring(lineStart, lineEnd)
+  }
+
+  const getPreviousLine = (text: string, cursorPos: number): string => {
+    const textBeforeCursor = text.substring(0, cursorPos)
+    const lastNewlineBeforeCursor = textBeforeCursor.lastIndexOf("\n")
+
+    if (lastNewlineBeforeCursor === -1) return ""
+
+    const secondLastNewline = textBeforeCursor.lastIndexOf("\n", lastNewlineBeforeCursor - 1)
+    const lineStart = secondLastNewline === -1 ? 0 : secondLastNewline + 1
+
+    return text.substring(lineStart, lastNewlineBeforeCursor)
+  }
+
+  const isTableRow = (line: string): boolean => {
+    return line.trim().startsWith("|") && line.trim().endsWith("|")
+  }
+
+  const countColumns = (tableRow: string): number => {
+    // Count the number of | characters and subtract 1
+    return (tableRow.match(/\|/g) || []).length - 1
+  }
+
+  const createSeparatorRow = (columnCount: number): string => {
+    let row = "|"
+    for (let i = 0; i < columnCount; i++) {
+      row += " --- |"
+    }
+    return row
+  }
+
+  const createEmptyRow = (columnCount: number): string => {
+    let row = "|"
+    for (let i = 0; i < columnCount; i++) {
+      row += "  |"
+    }
+    return row
   }
 
   return (
@@ -157,15 +305,33 @@ Here's a simple list of React concepts:
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4 flex-1">
         <Card className="flex flex-col h-full">
           <CardContent className="p-4 flex flex-col h-full">
-            <h2 className="text-xl font-semibold mb-2">Input</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xl font-semibold">Input</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsTableGeneratorOpen(true)}
+                className="flex items-center gap-1"
+              >
+                <Table2 className="h-4 w-4" />
+                <span>Add Table</span>
+              </Button>
+            </div>
             <Textarea
+              ref={textareaRef}
               value={markdown}
               onChange={(e) => setMarkdown(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="flex-1 min-h-0 font-mono resize-none bg-background"
               placeholder="Enter your markdown notes here..."
             />
             <div className="mt-2 text-sm text-muted-foreground">
               Use markdown headings (#) for key points. Content under each heading will appear as notes.
+              <br />
+              <span className="text-xs">
+                Tip: Type <code>|column1|column2|</code> and press Enter to create a table row, or use the table
+                generator for formatted tables.
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -190,6 +356,12 @@ Here's a simple list of React concepts:
           Save to Library
         </Button>
       </div>
+
+      <TableGenerator
+        isOpen={isTableGeneratorOpen}
+        onClose={() => setIsTableGeneratorOpen(false)}
+        onInsert={handleInsertTable}
+      />
     </main>
   )
 }
