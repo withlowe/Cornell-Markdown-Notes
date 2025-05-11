@@ -628,7 +628,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Removed the "Summary:" label, just show the summary content directly
       const summaryLines = doc.splitTextToSize(summary, 180)
       doc.text(summaryLines, 15, y)
-      y += summaryLines.length * 6 + 15 // Increased spacing after summary
+      y += summaryLines.length * 6 + 7.5 // Reduced spacing after summary by half (from 15 to 7.5)
     } else {
       y = 40 // More spacing if no summary
     }
