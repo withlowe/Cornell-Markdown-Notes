@@ -291,7 +291,7 @@ function renderBlockquote(doc: jsPDF, quoteLines: string[], x: number, y: number
 function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): number {
   const lines = content.split("\n")
   let currentY = y
-  const lineHeight = 7
+  const lineHeight = 8
 
   let i = 0
   while (i < lines.length) {
@@ -426,6 +426,7 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
     }
 
     // Regular paragraph text
+    doc.setFontSize(11)
     const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
     doc.text(textLines, x, currentY)
     currentY += textLines.length * lineHeight
@@ -614,9 +615,11 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       format: "a4",
     })
 
-    // Set title
-    doc.setFontSize(16)
-    doc.text(title, 15, 15)
+    // Set title - bigger and bold
+    doc.setFontSize(22)
+    doc.setFont(undefined, "bold")
+    doc.text(title, 15, 20)
+    doc.setFont(undefined, "normal")
 
     // Add summary if provided - removed the "Summary:" label
     let y = 25 // Increased spacing after title
@@ -682,7 +685,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       const headingHeight = headingLines.length * 7 + 5
 
       // Draw content with improved markdown rendering
-      doc.setFontSize(10)
+      doc.setFontSize(11)
       const contentEndY = renderMarkdownContent(
         doc,
         section.content,
