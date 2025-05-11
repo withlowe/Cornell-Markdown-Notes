@@ -1,7 +1,5 @@
 import { jsPDF } from "jspdf"
 import { getImage } from "./image-storage"
-import { marked } from "marked"
-import DOMPurify from "dompurify"
 
 interface Section {
   heading: string
@@ -74,15 +72,12 @@ async function processContentForExport(content: string): Promise<string> {
   const imageRegex = /cornell-image:\/\/(.*?)["']/g
   const matches = [...content.matchAll(imageRegex)]
 
-  console.log(`Found ${matches.length} cornell-image:// URLs to process`)
-
   // Replace each cornell-image:// URL with the actual image data
   for (const match of matches) {
     const imageId = match[1]
 
     if (imageId) {
       try {
-        console.log(`Processing image ID: ${imageId}`)
         const imageData = await getImage(imageId)
         if (imageData) {
           // Replace the cornell-image:// URL with the actual image data
@@ -90,9 +85,6 @@ async function processContentForExport(content: string): Promise<string> {
             new RegExp(`cornell-image://${imageId}["']`, "g"),
             `${imageData}"`,
           )
-          console.log(`Successfully replaced image ID ${imageId} with data URL`)
-        } else {
-          console.warn(`Image with ID ${imageId} not found in storage`)
         }
       } catch (error) {
         console.error(`Error loading image ${imageId} for export:`, error)
@@ -103,354 +95,517 @@ async function processContentForExport(content: string): Promise<string> {
   return processedContent
 }
 
-// DOM-based approach to render content
-async function renderContentToPdf(
+// Extract image URLs from markdown and HTML
+function extractImageUrls(content: string): string[] {
+  const urls: string[] = []
+
+  // Extract markdown image URLs
+  const markdownRegex = /!\[(.*?)\]$$(.*?)$$/g
+  let match
+  while ((match = markdownRegex.exec(content)) !== null) {
+    if (match[2] && !match[2].startsWith("data:")) {
+      urls.push(match[2])
+    }
+  }
+
+  // Extract HTML image URLs
+  const htmlRegex = /<img.*?src=["'](.*?)["'].*?>/g
+  while ((match = htmlRegex.exec(content)) !== null) {
+    if (match[1] && !match[1].startsWith("data:")) {
+      urls.push(match[1])
+    }
+  }
+
+  return urls
+}
+
+// Clean markdown text for rendering
+function cleanMarkdown(text: string): string {
+  // Remove bold and italic markers but keep the text
+  let cleaned = text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
+
+  // Remove backticks for inline code
+  cleaned = cleaned.replace(/`([^`]+)`/g, "$1")
+
+  return cleaned
+}
+
+// Render a table in PDF
+function renderTable(doc: jsPDF, tableText: string[], x: number, y: number, maxWidth: number): number {
+  // Parse table rows and columns
+  const tableRows = tableText.filter((line) => line.trim().startsWith("|") && line.trim().endsWith("|"))
+
+  if (tableRows.length < 2) return y // Not enough rows for a table
+
+  // Extract header row and separator row
+  const headerRow = tableRows[0]
+  const contentRows = tableRows.slice(2) // Skip the separator row
+
+  // Parse columns from header row
+  const columns = headerRow
+    .split("|")
+    .slice(1, -1)
+    .map((col) => col.trim())
+
+  // Calculate column widths
+  const totalWidth = maxWidth - 10 // Leave some margin
+  const columnWidth = totalWidth / columns.length
+
+  // Set up table styling
+  const cellPadding = 2
+  const rowHeight = 8
+  let currentY = y
+
+  // Draw table header
+  doc.setFontSize(9)
+  doc.setFont(undefined, "bold")
+
+  let currentX = x
+  columns.forEach((col) => {
+    // Draw header cell
+    doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding)
+    currentX += columnWidth
+  })
+
+  doc.setFont(undefined, "normal")
+  currentY += rowHeight
+
+  // Draw header separator
+  doc.setDrawColor(200, 200, 200)
+  doc.line(x, currentY, x + totalWidth, currentY)
+
+  // Draw content rows
+  contentRows.forEach((row) => {
+    const cells = row
+      .split("|")
+      .slice(1, -1)
+      .map((cell) => cell.trim())
+    currentX = x
+
+    cells.forEach((cell, i) => {
+      if (i < columns.length) {
+        // Draw cell content
+        const cellText = cleanMarkdown(cell)
+        const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
+        const cellHeight = cellLines.length * rowHeight
+
+        doc.text(cellLines, currentX + cellPadding, currentY + rowHeight - cellPadding)
+        currentX += columnWidth
+      }
+    })
+
+    currentY += rowHeight
+
+    // Draw row separator
+    doc.setDrawColor(230, 230, 230)
+    doc.line(x, currentY, x + totalWidth, currentY)
+  })
+
+  return currentY + 5 // Return the new Y position after the table
+}
+
+// Render a list in PDF
+function renderList(
   doc: jsPDF,
-  content: string,
+  listItems: string[],
   x: number,
   y: number,
   maxWidth: number,
-): Promise<number> {
-  console.log("Starting DOM-based content rendering")
+  isNumbered: boolean,
+): number {
+  let currentY = y
+  const lineHeight = 7
+  const indent = 5
 
-  // Convert markdown to HTML using marked
-  const html = marked.parse(content)
+  listItems.forEach((item, index) => {
+    // Create bullet or number
+    const marker = isNumbered ? `${index + 1}.` : "•"
+    const markerWidth = doc.getTextWidth(isNumbered ? `${marker} ` : `${marker}  `)
 
-  // Sanitize HTML to prevent XSS
-  const sanitizedHtml = DOMPurify.sanitize(html)
+    // Draw the marker
+    doc.text(marker, x, currentY)
 
-  // Create a temporary DOM element to parse the HTML
-  const tempDiv = document.createElement("div")
-  tempDiv.innerHTML = sanitizedHtml
+    // Draw the list item text with wrapping
+    const itemText = cleanMarkdown(item.trim())
+    const textLines = doc.splitTextToSize(itemText, maxWidth - markerWidth - indent)
 
-  // Current Y position for rendering
+    doc.text(textLines, x + markerWidth + indent, currentY)
+
+    // Move to next item
+    currentY += textLines.length * lineHeight
+  })
+
+  return currentY + 3
+}
+
+// Render a code block in PDF
+function renderCodeBlock(doc: jsPDF, codeLines: string[], x: number, y: number, maxWidth: number): number {
+  const lineHeight = 6
+  let currentY = y
+
+  // Draw code block background
+  const blockHeight = codeLines.length * lineHeight + 6
+  doc.setFillColor(245, 245, 245)
+  doc.rect(x, y, maxWidth, blockHeight, "F")
+
+  // Set monospace font for code
+  doc.setFontSize(8)
+
+  // Draw each line of code
+  codeLines.forEach((line) => {
+    doc.text(line, x + 3, currentY + 5)
+    currentY += lineHeight
+  })
+
+  return y + blockHeight + 3
+}
+
+// Render a blockquote in PDF
+function renderBlockquote(doc: jsPDF, quoteLines: string[], x: number, y: number, maxWidth: number): number {
+  const lineHeight = 7
+  let currentY = y
+
+  // Draw quote bar
+  doc.setDrawColor(200, 200, 200)
+  doc.setLineWidth(1)
+  doc.line(x, y, x, y + quoteLines.length * lineHeight)
+  doc.setLineWidth(0.1)
+
+  // Set quote text style
+  doc.setTextColor(100, 100, 100)
+
+  // Draw each line of the quote
+  quoteLines.forEach((line) => {
+    const textLines = doc.splitTextToSize(cleanMarkdown(line.trim()), maxWidth - 5)
+    doc.text(textLines, x + 5, currentY)
+    currentY += textLines.length * lineHeight
+  })
+
+  // Reset text color
+  doc.setTextColor(0, 0, 0)
+
+  return currentY + 3
+}
+
+// Process markdown content for PDF rendering
+function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): number {
+  const lines = content.split("\n")
   let currentY = y
   const lineHeight = 7
 
-  // Process each node in the DOM tree
-  for (const node of Array.from(tempDiv.childNodes)) {
-    // Check if we need to add a page break
-    if (currentY > doc.internal.pageSize.getHeight() - 20) {
-      doc.addPage()
-      currentY = 20
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Skip empty lines but add spacing
+    if (line.trim() === "") {
+      currentY += lineHeight / 2
+      i++
+      continue
     }
 
-    // Process different node types
-    if (node.nodeType === Node.TEXT_NODE) {
-      // Text node
-      if (node.textContent?.trim()) {
-        const text = node.textContent.trim()
-        const textLines = doc.splitTextToSize(text, maxWidth)
-        doc.text(textLines, x, currentY)
-        currentY += textLines.length * lineHeight
+    // Check for tables
+    if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+      // Collect all table lines
+      const tableLines = []
+      while (i < lines.length && lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
+        tableLines.push(lines[i])
+        i++
       }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const element = node as HTMLElement
 
-      // Handle different HTML elements
-      switch (element.tagName.toLowerCase()) {
-        case "p":
-          // Paragraph
-          const paragraphText = element.textContent?.trim() || ""
-          if (paragraphText) {
-            const textLines = doc.splitTextToSize(paragraphText, maxWidth)
-            doc.text(textLines, x, currentY)
-            currentY += textLines.length * lineHeight + 3 // Extra spacing after paragraph
-          }
-          break
-
-        case "h1":
-        case "h2":
-        case "h3":
-        case "h4":
-        case "h5":
-        case "h6":
-          // Headings
-          const level = Number.parseInt(element.tagName.charAt(1))
-          const headingText = element.textContent?.trim() || ""
-
-          const originalSize = doc.getFontSize()
-          doc.setFontSize(16 - level) // Size based on heading level
-          doc.setFont(undefined, "bold")
-
-          const headingLines = doc.splitTextToSize(headingText, maxWidth)
-          doc.text(headingLines, x, currentY)
-
-          doc.setFont(undefined, "normal")
-          doc.setFontSize(originalSize)
-
-          currentY += headingLines.length * lineHeight + 5 // Extra spacing after heading
-          break
-
-        case "img":
-          // Image
-          const imgElement = element as HTMLImageElement
-          const src = imgElement.src
-          const alt = imgElement.alt || "Image"
-
-          console.log(`Processing image in DOM: ${src.substring(0, 50)}...`)
-
-          // Handle different image sources
-          if (src.startsWith("data:")) {
-            try {
-              // Create an image element to get dimensions
-              const img = new Image()
-              img.crossOrigin = "anonymous"
-
-              // Wait for image to load
-              await new Promise<void>((resolve, reject) => {
-                img.onload = () => {
-                  try {
-                    // Get image format
-                    const format = src.split(";")[0].split("/")[1]?.toUpperCase() || "JPEG"
-                    const validFormat = ["JPEG", "JPG", "PNG"].includes(format) ? format : "JPEG"
-
-                    // Calculate dimensions
-                    const aspectRatio = img.width / img.height
-                    const imgWidth = Math.min(maxWidth, 150)
-                    const imgHeight = imgWidth / aspectRatio
-
-                    // If height is too large, recalculate
-                    const maxImageHeight = 60
-                    const finalHeight = Math.min(imgHeight, maxImageHeight)
-                    const finalWidth = finalHeight * aspectRatio
-
-                    // Add image to PDF
-                    doc.addImage(src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
-
-                    // Add caption if there's alt text
-                    if (alt && alt !== "Image") {
-                      doc.setFontSize(8)
-                      doc.setTextColor(100, 100, 100)
-                      doc.text(alt, x, currentY + finalHeight + 5, { align: "left", maxWidth: maxWidth })
-                      currentY += finalHeight + 15
-                    } else {
-                      currentY += finalHeight + 10
-                    }
-
-                    resolve()
-                  } catch (error) {
-                    console.error("Error adding image to PDF:", error)
-                    doc.setFontSize(9)
-                    doc.setTextColor(100, 100, 100)
-                    doc.text(`[Image could not be added to PDF]`, x, currentY)
-                    doc.setTextColor(0, 0, 0)
-                    currentY += 15
-                    resolve()
-                  }
-                }
-
-                img.onerror = () => {
-                  console.error("Error loading image")
-                  doc.setFontSize(9)
-                  doc.setTextColor(100, 100, 100)
-                  doc.text(`[Image could not be loaded]`, x, currentY)
-                  doc.setTextColor(0, 0, 0)
-                  currentY += 15
-                  resolve()
-                }
-
-                img.src = src
-              })
-            } catch (error) {
-              console.error("Error processing image:", error)
-              doc.setFontSize(9)
-              doc.setTextColor(100, 100, 100)
-              doc.text(`[Error processing image]`, x, currentY)
-              doc.setTextColor(0, 0, 0)
-              currentY += 15
-            }
-          } else if (src.includes("/placeholder.svg") || src.includes("/generic-placeholder-icon.png")) {
-            // Placeholder image
-            doc.setFontSize(9)
-            doc.setTextColor(100, 100, 100)
-            doc.text(`[Placeholder Image: ${alt}]`, x, currentY)
-            doc.setTextColor(0, 0, 0)
-            currentY += 15
-          } else {
-            // External URL
-            doc.setFontSize(9)
-            doc.setTextColor(100, 100, 100)
-            doc.text(`[External image: ${alt}]`, x, currentY)
-            doc.setTextColor(0, 0, 0)
-            currentY += 15
-          }
-          break
-
-        case "ul":
-        case "ol":
-          // Lists
-          const isOrdered = element.tagName.toLowerCase() === "ol"
-          const listItems = Array.from(element.querySelectorAll("li"))
-
-          for (let i = 0; i < listItems.length; i++) {
-            const item = listItems[i]
-            const itemText = item.textContent?.trim() || ""
-
-            // Create bullet or number
-            const marker = isOrdered ? `${i + 1}.` : "•"
-            const markerWidth = doc.getTextWidth(isOrdered ? `${marker} ` : `${marker}  `)
-
-            // Draw the marker
-            doc.text(marker, x, currentY)
-
-            // Draw the list item text with wrapping
-            const textLines = doc.splitTextToSize(itemText, maxWidth - markerWidth - 5)
-            doc.text(textLines, x + markerWidth + 5, currentY)
-
-            // Move to next item
-            currentY += textLines.length * lineHeight + 2
-          }
-
-          currentY += 3 // Extra spacing after list
-          break
-
-        case "blockquote":
-          // Blockquote
-          const quoteText = element.textContent?.trim() || ""
-
-          // Draw quote bar
-          doc.setDrawColor(200, 200, 200)
-          doc.setLineWidth(1)
-          const quoteLines = doc.splitTextToSize(quoteText, maxWidth - 5)
-          const quoteHeight = quoteLines.length * lineHeight
-          doc.line(x, currentY, x, currentY + quoteHeight)
-          doc.setLineWidth(0.1)
-
-          // Set quote text style
-          doc.setTextColor(100, 100, 100)
-
-          // Draw quote text
-          doc.text(quoteLines, x + 5, currentY)
-
-          // Reset text color
-          doc.setTextColor(0, 0, 0)
-
-          currentY += quoteHeight + 5
-          break
-
-        case "table":
-          // Table
-          const rows = Array.from(element.querySelectorAll("tr"))
-          if (rows.length > 0) {
-            const headerRow = rows[0]
-            const headerCells = Array.from(headerRow.querySelectorAll("th, td"))
-
-            // Calculate column widths
-            const columnCount = headerCells.length
-            const columnWidth = maxWidth / columnCount
-
-            // Set up table styling
-            const cellPadding = 2
-            const rowHeight = 8
-
-            // Draw header row
-            doc.setFontSize(9)
-            doc.setFont(undefined, "bold")
-
-            let cellX = x
-            headerCells.forEach((cell) => {
-              const cellText = cell.textContent?.trim() || ""
-              doc.text(cellText, cellX + cellPadding, currentY + rowHeight - cellPadding)
-              cellX += columnWidth
-            })
-
-            doc.setFont(undefined, "normal")
-            currentY += rowHeight
-
-            // Draw header separator
-            doc.setDrawColor(200, 200, 200)
-            doc.line(x, currentY, x + maxWidth, currentY)
-
-            // Draw data rows
-            for (let i = 1; i < rows.length; i++) {
-              const row = rows[i]
-              const cells = Array.from(row.querySelectorAll("td"))
-
-              cellX = x
-              cells.forEach((cell, j) => {
-                if (j < columnCount) {
-                  const cellText = cell.textContent?.trim() || ""
-                  const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
-
-                  doc.text(cellLines, cellX + cellPadding, currentY + rowHeight - cellPadding)
-                  cellX += columnWidth
-                }
-              })
-
-              currentY += rowHeight
-
-              // Draw row separator
-              doc.setDrawColor(230, 230, 230)
-              doc.line(x, currentY, x + maxWidth, currentY)
-            }
-
-            currentY += 5 // Extra spacing after table
-          }
-          break
-
-        case "pre":
-          // Code block
-          const codeElement = element.querySelector("code")
-          const codeText = codeElement?.textContent?.trim() || element.textContent?.trim() || ""
-          const codeLines = codeText.split("\n")
-
-          // Draw code block background
-          const lineHeight = 6
-          const blockHeight = codeLines.length * lineHeight + 6
-          doc.setFillColor(245, 245, 245)
-          doc.rect(x, currentY, maxWidth, blockHeight, "F")
-
-          // Set monospace font for code
-          doc.setFontSize(8)
-
-          // Draw each line of code
-          let codeY = currentY
-          codeLines.forEach((line) => {
-            doc.text(line, x + 3, codeY + 5)
-            codeY += lineHeight
-          })
-
-          currentY += blockHeight + 3
-          break
-
-        default:
-          // Handle other elements by processing their children
-          if (element.childNodes.length > 0) {
-            for (const childNode of Array.from(element.childNodes)) {
-              if (childNode.nodeType === Node.TEXT_NODE) {
-                if (childNode.textContent?.trim()) {
-                  const text = childNode.textContent.trim()
-                  const textLines = doc.splitTextToSize(text, maxWidth)
-                  doc.text(textLines, x, currentY)
-                  currentY += textLines.length * lineHeight
-                }
-              }
-            }
-          }
-          break
-      }
+      currentY = renderTable(doc, tableLines, x, currentY, maxWidth)
+      continue
     }
 
-    // Add a small gap between elements
-    currentY += 2
+    // Check for code blocks
+    if (line.trim().startsWith("```")) {
+      const codeLines = []
+      i++ // Skip the opening \`\`\`
+
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i])
+        i++
+      }
+
+      i++ // Skip the closing \`\`\`
+      currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth)
+      continue
+    }
+
+    // Check for blockquotes
+    if (line.trim().startsWith(">")) {
+      const quoteLines = []
+      while (i < lines.length && lines[i].trim().startsWith(">")) {
+        quoteLines.push(lines[i].substring(lines[i].indexOf(">") + 1))
+        i++
+      }
+
+      currentY = renderBlockquote(doc, quoteLines, x, currentY, maxWidth)
+      continue
+    }
+
+    // Check for unordered lists
+    if (line.trim().match(/^[-*]\s/)) {
+      const listItems = []
+      while (i < lines.length && lines[i].trim().match(/^[-*]\s/)) {
+        listItems.push(lines[i].substring(lines[i].indexOf(" ") + 1))
+        i++
+      }
+
+      currentY = renderList(doc, listItems, x, currentY, maxWidth, false)
+      continue
+    }
+
+    // Check for ordered lists
+    if (line.trim().match(/^\d+\.\s/)) {
+      const listItems = []
+      while (i < lines.length && lines[i].trim().match(/^\d+\.\s/)) {
+        listItems.push(lines[i].substring(lines[i].indexOf(".") + 1))
+        i++
+      }
+
+      currentY = renderList(doc, listItems, x, currentY, maxWidth, true)
+      continue
+    }
+
+    // Check for headings (level 2-6)
+    if (line.trim().match(/^#{2,6}\s/)) {
+      const level = line.trim().indexOf(" ")
+      const headingText = line.trim().substring(level + 1)
+
+      const originalSize = doc.getFontSize()
+      doc.setFontSize(12 - (level - 2)) // Size based on heading level
+      doc.setFont(undefined, "bold")
+
+      const textLines = doc.splitTextToSize(cleanMarkdown(headingText), maxWidth)
+      doc.text(textLines, x, currentY)
+
+      doc.setFont(undefined, "normal")
+      doc.setFontSize(originalSize)
+
+      currentY += textLines.length * lineHeight + 2
+      i++
+      continue
+    }
+
+    // Check for HTML image tags
+    if (line.includes("<img") && line.includes("src=")) {
+      // Extract the image URL and alt text
+      const srcMatch = line.match(/src=["'](.*?)["']/)
+      const altMatch = line.match(/alt=["'](.*?)["']/)
+
+      if (srcMatch) {
+        // Add a placeholder for the image
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Image: ${altMatch ? altMatch[1] : "Image"}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += lineHeight * 2
+      }
+
+      i++
+      continue
+    }
+
+    // Check for markdown images
+    if (line.includes("![") && line.includes("](")) {
+      // Extract the image URL and alt text
+      const match = line.match(/!\[(.*?)\]$$(.*?)$$/)
+
+      if (match) {
+        // Add a placeholder for the image
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Image: ${match[1] || "Image"}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += lineHeight * 2
+      }
+
+      i++
+      continue
+    }
+
+    // Regular paragraph text
+    const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
+    doc.text(textLines, x, currentY)
+    currentY += textLines.length * lineHeight
+    i++
   }
 
-  console.log("Finished DOM-based content rendering")
   return currentY
 }
 
-// Export to PDF with DOM-based rendering
+// Add images to PDF
+async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): Promise<number> {
+  let currentY = y
+  const imageMargin = 10 // Space between images
+  const maxImageHeight = 60 // Maximum height for images in the PDF
+
+  // Extract all image URLs (both markdown and HTML)
+  const htmlImageRegex = /<img.*?src=["'](.*?)["'].*?>/g
+  let match
+  const imagesToAdd = []
+
+  // Find HTML images (our app primarily uses HTML img tags)
+  while ((match = htmlImageRegex.exec(content)) !== null) {
+    const src = match[1]
+    // Extract alt text if available
+    const altMatch = match[0].match(/alt=["'](.*?)["']/)
+    const alt = altMatch ? altMatch[1] : ""
+
+    if (src) {
+      imagesToAdd.push({ src, alt })
+      console.log("Found image in content:", src.substring(0, 50) + "...")
+    }
+  }
+
+  // If no images were found, return the current Y position
+  if (imagesToAdd.length === 0) {
+    console.log("No images found in content")
+    return currentY
+  }
+
+  console.log(`Found ${imagesToAdd.length} images to add to PDF`)
+
+  // Add each image to the PDF
+  for (const image of imagesToAdd) {
+    try {
+      console.log("Processing image:", image.src.substring(0, 50) + "...")
+
+      // Skip placeholder images
+      if (image.src.includes("/placeholder.svg") || image.src.includes("/generic-placeholder-icon.png")) {
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Placeholder Image: ${image.alt || "Image"}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += 20
+        continue
+      }
+
+      // Create an image element to get dimensions
+      const img = new Image()
+
+      // Check if it's a cornell-image:// URL
+      if (image.src.startsWith("cornell-image://")) {
+        const imageId = image.src.replace("cornell-image://", "")
+        try {
+          const imageData = await getImage(imageId)
+          if (imageData) {
+            image.src = imageData
+          } else {
+            // Use a placeholder if image not found
+            doc.setFontSize(9)
+            doc.setTextColor(100, 100, 100)
+            doc.text(`[Image not found: ${image.alt || "Unknown"}]`, x, currentY)
+            doc.setTextColor(0, 0, 0)
+            currentY += 20
+            continue
+          }
+        } catch (error) {
+          console.error("Error loading image from storage:", error)
+          // Use a placeholder if loading fails
+          doc.setFontSize(9)
+          doc.setTextColor(100, 100, 100)
+          doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
+          doc.setTextColor(0, 0, 0)
+          currentY += 20
+          continue
+        }
+      }
+
+      // For data URLs, we can use them directly with jsPDF
+      if (image.src.startsWith("data:")) {
+        // Get the image format from the data URL
+        const format = image.src.split(";")[0].split("/")[1].toUpperCase()
+        const validFormat = ["JPEG", "JPG", "PNG"].includes(format) ? format : "JPEG"
+
+        // Calculate dimensions to maintain aspect ratio
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            // Calculate dimensions to maintain aspect ratio correctly
+            const aspectRatio = img.width / img.height
+
+            // Set a maximum width based on available space
+            const imgWidth = Math.min(maxWidth, 150)
+
+            // Calculate height based on the aspect ratio
+            const imgHeight = imgWidth / aspectRatio
+
+            // If the height is too large, recalculate width based on max height
+            const finalHeight = Math.min(imgHeight, maxImageHeight)
+            const finalWidth = finalHeight * aspectRatio
+
+            try {
+              // Add the image to the PDF with the correct dimensions
+              doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
+              console.log("Added image to PDF successfully")
+
+              // Add caption if there's alt text
+              if (image.alt) {
+                doc.setFontSize(8)
+                doc.setTextColor(100, 100, 100)
+                const captionY = currentY + finalHeight + 5
+                doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
+                currentY = captionY + 10
+              } else {
+                currentY += finalHeight + imageMargin
+              }
+            } catch (error) {
+              console.error("Error adding image to PDF:", error)
+              // Use a placeholder if adding fails
+              doc.setFontSize(9)
+              doc.setTextColor(100, 100, 100)
+              doc.text(`[Image could not be added to PDF: ${error.message || "Unknown error"}]`, x, currentY)
+              doc.setTextColor(0, 0, 0)
+              currentY += 20
+            }
+            resolve()
+          }
+
+          img.onerror = () => {
+            console.error("Error loading image")
+            // Use a placeholder if loading fails
+            doc.setFontSize(9)
+            doc.setTextColor(100, 100, 100)
+            doc.text(`[Image could not be loaded]`, x, currentY)
+            doc.setTextColor(0, 0, 0)
+            currentY += 20
+            resolve()
+          }
+
+          // Set crossOrigin to anonymous to avoid CORS issues
+          img.crossOrigin = "anonymous"
+          img.src = image.src
+        })
+      } else {
+        // For other URLs, use a placeholder
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`[Image: ${image.alt || image.src}]`, x, currentY)
+        doc.setTextColor(0, 0, 0)
+        currentY += 20
+      }
+    } catch (error) {
+      console.error(`Failed to add image to PDF: ${image.src}`, error)
+      // Add a placeholder for failed images
+      doc.setFontSize(9)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`[Image could not be loaded: ${error.message || "Unknown error"}]`, x, currentY)
+      doc.setTextColor(0, 0, 0)
+      currentY += 20
+    }
+  }
+
+  return currentY
+}
+
+// Export to PDF with improved markdown rendering
 export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
   try {
-    console.log("Starting PDF export process")
-
     // First, process the markdown to load images from storage
     const processedMarkdown = await processContentForExport(markdown)
-    console.log("Processed markdown content with images loaded from storage")
 
     const sections = parseMarkdown(processedMarkdown)
-    console.log(`Parsed ${sections.length} sections from markdown`)
 
     // Create a new PDF document
     const doc = new jsPDF({
@@ -463,15 +618,16 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     doc.setFontSize(16)
     doc.text(title, 15, 15)
 
-    // Add summary if provided
-    let y = 25
+    // Add summary if provided - removed the "Summary:" label
+    let y = 25 // Increased spacing after title
     if (summary) {
       doc.setFontSize(10)
+      // Removed the "Summary:" label, just show the summary content directly
       const summaryLines = doc.splitTextToSize(summary, 180)
       doc.text(summaryLines, 15, y)
-      y += summaryLines.length * 5 + 10
+      y += summaryLines.length * 5 + 10 // Increased spacing after summary
     } else {
-      y = 30
+      y = 30 // More spacing if no summary
     }
 
     // Draw the Cornell note structure
@@ -481,34 +637,33 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     const keyPointsWidth = 45
     const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
-    // Draw header
+    // Draw header - no shading, just text
     doc.setFontSize(10)
     doc.text("Key Points", margin + 5, y)
     doc.text("Notes", margin + keyPointsWidth + 5, y)
 
-    // Draw header line
-    doc.setDrawColor(220, 220, 220)
+    // Draw a single light horizontal line under the header
+    doc.setDrawColor(220, 220, 220) // Very light gray
     doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
 
-    // Draw content
+    // Draw content with minimal styling
     y += 5
 
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
-      console.log(`Processing section ${index + 1}: ${section.heading}`)
 
       // Check if we need a new page
       if (y + 20 > pageHeight - margin) {
         doc.addPage()
         y = margin
 
-        // Redraw header on new page
+        // Redraw header on new page - just text, no shading
         doc.setFontSize(10)
         doc.text("Key Points", margin + 5, y + 5)
         doc.text("Notes", margin + keyPointsWidth + 5, y + 5)
 
-        // Draw header line
-        doc.setDrawColor(220, 220, 220)
+        // Draw a single light horizontal line under the header
+        doc.setDrawColor(220, 220, 220) // Very light gray
         doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
 
         y += 10
@@ -526,25 +681,32 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Calculate heading height
       const headingHeight = headingLines.length * 7 + 5
 
-      // Draw content with DOM-based rendering
+      // Draw content with improved markdown rendering
       doc.setFontSize(10)
-      console.log(`Rendering content for section: ${section.heading}`)
-      const contentEndY = await renderContentToPdf(
+      const contentEndY = renderMarkdownContent(
         doc,
         section.content,
         margin + keyPointsWidth + 5,
         y + 5,
         contentWidth - 10,
       )
-      console.log(`Finished rendering content for section: ${section.heading}`)
+
+      // Add images after the text content
+      const imagesEndY = await addImagesToPdf(
+        doc,
+        section.content,
+        margin + keyPointsWidth + 5,
+        contentEndY + 5,
+        contentWidth - 10,
+      )
 
       // Calculate section height
-      const sectionHeight = Math.max(headingHeight, contentEndY - y)
+      const sectionHeight = Math.max(headingHeight, imagesEndY - y)
 
-      // Draw section borders
-      doc.setDrawColor(230, 230, 230)
+      // Draw section with very light borders
+      doc.setDrawColor(230, 230, 230) // Extra light gray for borders
 
-      // Draw vertical divider
+      // Draw vertical divider between key points and notes
       doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, startY + sectionHeight)
 
       // Draw horizontal line at the bottom of the section
@@ -558,11 +720,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
     // Generate the PDF as a blob
     const pdfBlob = doc.output("blob")
-    console.log("Generated PDF blob")
 
     // Download the PDF
     downloadBlob(pdfBlob, `${title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
-    console.log("PDF download initiated")
   } catch (error) {
     console.error("Error generating PDF:", error)
     throw new Error(`Failed to generate PDF: ${error instanceof Error ? error.message : "Unknown error"}`)
