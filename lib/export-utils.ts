@@ -622,15 +622,15 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     doc.setFont(undefined, "normal")
 
     // Add summary if provided - removed the "Summary:" label
-    let y = 25 // Increased spacing after title
+    let y = 30 // More spacing after title
     if (summary) {
-      doc.setFontSize(10)
+      doc.setFontSize(11) // Match the markdown text size
       // Removed the "Summary:" label, just show the summary content directly
       const summaryLines = doc.splitTextToSize(summary, 180)
       doc.text(summaryLines, 15, y)
-      y += summaryLines.length * 5 + 10 // Increased spacing after summary
+      y += summaryLines.length * 6 + 15 // Increased spacing after summary
     } else {
-      y = 30 // More spacing if no summary
+      y = 40 // More spacing if no summary
     }
 
     // Draw the Cornell note structure
@@ -640,17 +640,12 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     const keyPointsWidth = 45
     const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
-    // Draw header - no shading, just text
-    doc.setFontSize(10)
-    doc.text("Key Points", margin + 5, y)
-    doc.text("Notes", margin + keyPointsWidth + 5, y)
-
-    // Draw a single light horizontal line under the header
+    // Draw a single light horizontal line under where the header would be
     doc.setDrawColor(220, 220, 220) // Very light gray
     doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
 
     // Draw content with minimal styling
-    y += 5
+    y += 10 // Increased spacing between header and content
 
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
@@ -660,12 +655,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.addPage()
         y = margin
 
-        // Redraw header on new page - just text, no shading
-        doc.setFontSize(10)
-        doc.text("Key Points", margin + 5, y + 5)
-        doc.text("Notes", margin + keyPointsWidth + 5, y + 5)
-
-        // Draw a single light horizontal line under the header
+        // Draw a single light horizontal line under where the header would be on new pages
         doc.setDrawColor(220, 220, 220) // Very light gray
         doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
 
