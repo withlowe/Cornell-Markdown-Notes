@@ -413,7 +413,7 @@ function renderMarkdownContent(
 ): number {
   const lines = content.split("\n")
   let currentY = y
-  const lineHeight = 10 // Reduced line height for better readability
+  const lineHeight = 8 // Decreased line height for markdown notes (was 10)
 
   let i = 0
   while (i < lines.length) {
@@ -845,10 +845,18 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     let y = 30 // More spacing after title
     if (summary) {
       doc.setFontSize(11) // Match the markdown text size
-      // Removed the "Summary:" label, just show the summary content directly
+
+      // Increased line spacing for summary text (was 6, now 8)
+      const summaryLineHeight = 8
       const summaryLines = doc.splitTextToSize(summary, 180)
-      doc.text(summaryLines, 15, y)
-      y += summaryLines.length * 6 + 5 // Reduced spacing after summary
+
+      // Apply increased line spacing by manually positioning each line
+      for (let i = 0; i < summaryLines.length; i++) {
+        doc.text(summaryLines[i], 15, y + i * summaryLineHeight)
+      }
+
+      // Calculate total height used by summary
+      y += summaryLines.length * summaryLineHeight + 5 // Reduced spacing after summary
     } else {
       y = 35 // Reduced spacing if no summary
     }
@@ -859,6 +867,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
     // Draw content with minimal styling
     y += 8 // Reduced spacing between header and content
+
+    // Track section boundaries for proper horizontal line alignment
+    const sectionBoundaries = []
 
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
@@ -876,6 +887,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
 
       const startY = y
+      const startPage = doc.getCurrentPageInfo().pageNumber
 
       // Draw key point (heading)
       doc.setFontSize(11)
@@ -915,33 +927,29 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         margin,
       )
 
-      // Calculate section height - need to handle multi-page sections
-      let sectionHeight = 0
-
-      // If we're still on the same page
-      if (doc.getCurrentPageInfo().pageNumber === doc.getNumberOfPages()) {
-        sectionHeight = Math.max(headingHeight, imagesEndY - startY)
-      } else {
-        // If we've moved to a new page, calculate height differently
-        // We'll use the remaining space on the first page plus the used space on subsequent pages
-        sectionHeight = pageHeight - margin - startY
-      }
+      // Store section boundary information for proper line drawing
+      const endPage = doc.getCurrentPageInfo().pageNumber
+      sectionBoundaries.push({
+        index,
+        startY,
+        startPage,
+        endY: imagesEndY,
+        endPage,
+      })
 
       // Draw section with very light borders
       doc.setDrawColor(230, 230, 230) // Extra light gray for borders
 
       // Draw vertical divider between key points and notes
       // We need to draw this on each page that contains this section
-      const currentPage = doc.getCurrentPageInfo().pageNumber
-      const startPage = doc.getNumberOfPages() - (currentPage - 1)
-
-      for (let pageNum = startPage; pageNum <= doc.getNumberOfPages(); pageNum++) {
+      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
         doc.setPage(pageNum)
 
         if (pageNum === startPage) {
           // First page of the section
-          doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, pageHeight - margin)
-        } else if (pageNum === doc.getNumberOfPages()) {
+          const endY = pageNum === endPage ? imagesEndY : pageHeight - margin
+          doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, endY)
+        } else if (pageNum === endPage) {
           // Last page of the section
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, imagesEndY)
         } else {
@@ -949,7 +957,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
         }
 
-        // Add horizontal lines at top and bottom of each page (except first page)
+        // Add horizontal lines at top of each page (except first page)
         if (pageNum > startPage) {
           // Top horizontal line on continuation pages
           doc.line(margin, margin, margin + keyPointsWidth + contentWidth, margin)
@@ -957,15 +965,23 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
 
       // Set back to the last page
-      doc.setPage(doc.getNumberOfPages())
-
-      // Draw horizontal line at the bottom of the section
-      if (index < sections.length - 1) {
-        doc.line(margin, imagesEndY, margin + keyPointsWidth + contentWidth, imagesEndY)
-      }
+      doc.setPage(endPage)
 
       // Update y position for next section
       y = imagesEndY + 2 // Reduced spacing between sections
+    }
+
+    // Draw horizontal lines at the bottom of each section
+    // This is done after all sections are processed to ensure proper alignment
+    for (let i = 0; i < sectionBoundaries.length; i++) {
+      const section = sectionBoundaries[i]
+
+      // Only draw bottom line if not the last section
+      if (i < sectionBoundaries.length - 1) {
+        doc.setPage(section.endPage)
+        doc.setDrawColor(230, 230, 230) // Extra light gray for borders
+        doc.line(margin, section.endY, margin + keyPointsWidth + contentWidth, section.endY)
+      }
     }
 
     // Generate the PDF as a blob
