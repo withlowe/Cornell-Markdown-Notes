@@ -869,26 +869,6 @@ async function addImagesToPdf(
   return currentY
 }
 
-// Function to add column headers to the page
-function addColumnHeaders(doc: jsPDF, margin: number, keyPointsWidth: number, contentWidth: number, headerY: number) {
-  // Set font for headers
-  doc.setFontSize(10)
-  doc.setFont(undefined, "bold")
-
-  // Calculate center positions for text alignment
-  const topicCenterX = margin + keyPointsWidth / 2
-  const notesCenterX = margin + keyPointsWidth + contentWidth / 2
-
-  // Add "Topic" header in the left column
-  doc.text("Topic", topicCenterX, headerY, { align: "center" })
-
-  // Add "Notes" header in the right column
-  doc.text("Notes", notesCenterX, headerY, { align: "center" })
-
-  // Reset font
-  doc.setFont(undefined, "normal")
-}
-
 // Export to PDF with improved markdown rendering
 export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
   try {
@@ -944,10 +924,6 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     // Draw content with minimal styling
     y += 8 // Reduced spacing between header and content
 
-    // Add column headers on the first page
-    const headerY = y - 3 // Position headers just above the content
-    addColumnHeaders(doc, margin, keyPointsWidth, contentWidth, headerY)
-
     // Track section boundaries for proper horizontal line alignment
     const sectionBoundaries = []
 
@@ -957,6 +933,11 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
 
+      // Skip sections with empty content
+      if (!section.content.trim()) {
+        continue
+      }
+
       // Check if we need a new page
       if (y + 20 > pageHeight - margin) {
         doc.addPage()
@@ -965,10 +946,6 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         // Draw a single light horizontal line under where the header would be on new pages
         doc.setDrawColor(220, 220, 220) // Very light gray
         doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
-
-        // Add column headers on the new page
-        const newPageHeaderY = y + 4 // Position headers just above the content on new pages
-        addColumnHeaders(doc, margin, keyPointsWidth, contentWidth, newPageHeaderY)
 
         y += 8 // Reduced spacing on new pages
       }
@@ -1068,7 +1045,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       doc.setPage(endPage)
 
       // Update y position for next section
-      y = imagesEndY + 2 // Reduced spacing between sections
+      y = imagesEndY + 1 // Reduced spacing between sections
     }
 
     // Draw horizontal lines at the bottom of each section
@@ -1092,10 +1069,6 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         const section = sections[sectionIndex]
 
         doc.setPage(pageNum)
-
-        // Add column headers on continuation pages
-        const headerY = margin + 4 // Position headers just above the content
-        addColumnHeaders(doc, margin, keyPointsWidth, contentWidth, headerY)
 
         // Draw the key point heading on the continuation page
         doc.setFontSize(11)
