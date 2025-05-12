@@ -131,7 +131,15 @@ function cleanMarkdown(text: string): string {
 }
 
 // Render a table in PDF
-function renderTable(doc: jsPDF, tableText: string[], x: number, y: number, maxWidth: number): number {
+function renderTable(
+  doc: jsPDF,
+  tableText: string[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  pageHeight: number,
+  margin: number,
+): number {
   // Parse table rows and columns
   const tableRows = tableText.filter((line) => line.trim().startsWith("|") && line.trim().endsWith("|"))
 
@@ -153,8 +161,14 @@ function renderTable(doc: jsPDF, tableText: string[], x: number, y: number, maxW
 
   // Set up table styling
   const cellPadding = 2
-  const rowHeight = 8
+  const rowHeight = 10 // Increased row height
   let currentY = y
+
+  // Check if we need a new page before starting the table
+  if (currentY + rowHeight * 2 > pageHeight - margin) {
+    doc.addPage()
+    currentY = margin
+  }
 
   // Draw table header
   doc.setFontSize(9)
@@ -175,7 +189,30 @@ function renderTable(doc: jsPDF, tableText: string[], x: number, y: number, maxW
   doc.line(x, currentY, x + totalWidth, currentY)
 
   // Draw content rows
-  contentRows.forEach((row) => {
+  for (let rowIndex = 0; rowIndex < contentRows.length; rowIndex++) {
+    const row = contentRows[rowIndex]
+
+    // Check if we need a new page before drawing this row
+    if (currentY + rowHeight > pageHeight - margin) {
+      doc.addPage()
+      currentY = margin
+
+      // Redraw header on new page
+      doc.setFontSize(9)
+      doc.setFont(undefined, "bold")
+      currentX = x
+      columns.forEach((col) => {
+        doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding)
+        currentX += columnWidth
+      })
+      doc.setFont(undefined, "normal")
+      currentY += rowHeight
+
+      // Redraw header separator
+      doc.setDrawColor(200, 200, 200)
+      doc.line(x, currentY, x + totalWidth, currentY)
+    }
+
     const cells = row
       .split("|")
       .slice(1, -1)
@@ -199,7 +236,7 @@ function renderTable(doc: jsPDF, tableText: string[], x: number, y: number, maxW
     // Draw row separator
     doc.setDrawColor(230, 230, 230)
     doc.line(x, currentY, x + totalWidth, currentY)
-  })
+  }
 
   return currentY + 5 // Return the new Y position after the table
 }
@@ -212,12 +249,22 @@ function renderList(
   y: number,
   maxWidth: number,
   isNumbered: boolean,
+  pageHeight: number,
+  margin: number,
 ): number {
   let currentY = y
-  const lineHeight = 7
+  const lineHeight = 10 // Increased line height
   const indent = 5
 
-  listItems.forEach((item, index) => {
+  for (let index = 0; index < listItems.length; index++) {
+    const item = listItems[index]
+
+    // Check if we need a new page
+    if (currentY + lineHeight > pageHeight - margin) {
+      doc.addPage()
+      currentY = margin
+    }
+
     // Create bullet or number
     const marker = isNumbered ? `${index + 1}.` : "•"
     const markerWidth = doc.getTextWidth(isNumbered ? `${marker} ` : `${marker}  `)
@@ -229,57 +276,124 @@ function renderList(
     const itemText = cleanMarkdown(item.trim())
     const textLines = doc.splitTextToSize(itemText, maxWidth - markerWidth - indent)
 
-    doc.text(textLines, x + markerWidth + indent, currentY)
+    // Check if we need to split across pages
+    for (let lineIndex = 0; lineIndex < textLines.length; lineIndex++) {
+      if (currentY + lineHeight > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin
+      }
 
-    // Move to next item
-    currentY += textLines.length * lineHeight
-  })
+      doc.text(textLines[lineIndex], x + markerWidth + indent, currentY)
+      currentY += lineHeight
+    }
+  }
 
   return currentY + 3
 }
 
 // Render a code block in PDF
-function renderCodeBlock(doc: jsPDF, codeLines: string[], x: number, y: number, maxWidth: number): number {
-  const lineHeight = 6
+function renderCodeBlock(
+  doc: jsPDF,
+  codeLines: string[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  pageHeight: number,
+  margin: number,
+): number {
+  const lineHeight = 8 // Increased line height for code
   let currentY = y
 
+  // Check if we need a new page
+  if (currentY + lineHeight * codeLines.length + 6 > pageHeight - margin) {
+    // If the entire code block won't fit, start on a new page
+    doc.addPage()
+    currentY = margin
+  }
+
   // Draw code block background
-  const blockHeight = codeLines.length * lineHeight + 6
+  const blockHeight = Math.min(codeLines.length * lineHeight + 6, pageHeight - margin - currentY)
   doc.setFillColor(245, 245, 245)
-  doc.rect(x, y, maxWidth, blockHeight, "F")
+  doc.rect(x, currentY, maxWidth, blockHeight, "F")
 
   // Set monospace font for code
   doc.setFontSize(8)
 
   // Draw each line of code
-  codeLines.forEach((line) => {
-    doc.text(line, x + 3, currentY + 5)
-    currentY += lineHeight
-  })
+  for (let i = 0; i < codeLines.length; i++) {
+    // Check if we need a new page
+    if (currentY + lineHeight > pageHeight - margin) {
+      // Save the current position in the code block
+      const remainingLines = codeLines.slice(i)
 
-  return y + blockHeight + 3
+      doc.addPage()
+      currentY = margin
+
+      // Draw background for the rest of the code block
+      const remainingHeight = Math.min(remainingLines.length * lineHeight + 6, pageHeight - margin - currentY)
+      doc.setFillColor(245, 245, 245)
+      doc.rect(x, currentY, maxWidth, remainingHeight, "F")
+    }
+
+    doc.text(codeLines[i], x + 3, currentY + 5)
+    currentY += lineHeight
+  }
+
+  return currentY + 3
 }
 
 // Render a blockquote in PDF
-function renderBlockquote(doc: jsPDF, quoteLines: string[], x: number, y: number, maxWidth: number): number {
-  const lineHeight = 7
+function renderBlockquote(
+  doc: jsPDF,
+  quoteLines: string[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  pageHeight: number,
+  margin: number,
+): number {
+  const lineHeight = 10 // Increased line height
   let currentY = y
+  let startY = y
 
-  // Draw quote bar
+  // Check if we need a new page
+  if (currentY + lineHeight > pageHeight - margin) {
+    doc.addPage()
+    currentY = margin
+    startY = margin
+  }
+
+  // Draw quote bar for the first segment
   doc.setDrawColor(200, 200, 200)
   doc.setLineWidth(1)
-  doc.line(x, y, x, y + quoteLines.length * lineHeight)
-  doc.setLineWidth(0.1)
 
   // Set quote text style
   doc.setTextColor(100, 100, 100)
 
   // Draw each line of the quote
-  quoteLines.forEach((line) => {
+  for (let i = 0; i < quoteLines.length; i++) {
+    const line = quoteLines[i]
     const textLines = doc.splitTextToSize(cleanMarkdown(line.trim()), maxWidth - 5)
-    doc.text(textLines, x + 5, currentY)
-    currentY += textLines.length * lineHeight
-  })
+
+    for (let j = 0; j < textLines.length; j++) {
+      // Check if we need a new page
+      if (currentY + lineHeight > pageHeight - margin) {
+        // Draw the quote bar for the current segment
+        doc.line(x, startY, x, currentY)
+
+        doc.addPage()
+        currentY = margin
+        startY = margin
+      }
+
+      doc.text(textLines[j], x + 5, currentY)
+      currentY += lineHeight
+    }
+  }
+
+  // Draw the quote bar for the last segment
+  doc.line(x, startY, x, currentY)
+  doc.setLineWidth(0.1)
 
   // Reset text color
   doc.setTextColor(0, 0, 0)
@@ -288,14 +402,28 @@ function renderBlockquote(doc: jsPDF, quoteLines: string[], x: number, y: number
 }
 
 // Process markdown content for PDF rendering
-function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): number {
+function renderMarkdownContent(
+  doc: jsPDF,
+  content: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  pageHeight: number,
+  margin: number,
+): number {
   const lines = content.split("\n")
   let currentY = y
-  const lineHeight = 8
+  const lineHeight = 12 // Increased line height for better readability
 
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
+
+    // Check if we need a new page
+    if (currentY + lineHeight > pageHeight - margin) {
+      doc.addPage()
+      currentY = margin
+    }
 
     // Skip empty lines but add spacing
     if (line.trim() === "") {
@@ -313,7 +441,7 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
         i++
       }
 
-      currentY = renderTable(doc, tableLines, x, currentY, maxWidth)
+      currentY = renderTable(doc, tableLines, x, currentY, maxWidth, pageHeight, margin)
       continue
     }
 
@@ -328,7 +456,7 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
       }
 
       i++ // Skip the closing \`\`\`
-      currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth)
+      currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth, pageHeight, margin)
       continue
     }
 
@@ -340,7 +468,7 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
         i++
       }
 
-      currentY = renderBlockquote(doc, quoteLines, x, currentY, maxWidth)
+      currentY = renderBlockquote(doc, quoteLines, x, currentY, maxWidth, pageHeight, margin)
       continue
     }
 
@@ -352,7 +480,7 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
         i++
       }
 
-      currentY = renderList(doc, listItems, x, currentY, maxWidth, false)
+      currentY = renderList(doc, listItems, x, currentY, maxWidth, false, pageHeight, margin)
       continue
     }
 
@@ -364,7 +492,7 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
         i++
       }
 
-      currentY = renderList(doc, listItems, x, currentY, maxWidth, true)
+      currentY = renderList(doc, listItems, x, currentY, maxWidth, true, pageHeight, margin)
       continue
     }
 
@@ -378,6 +506,13 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
       doc.setFont(undefined, "bold")
 
       const textLines = doc.splitTextToSize(cleanMarkdown(headingText), maxWidth)
+
+      // Check if heading needs to go to next page
+      if (currentY + textLines.length * lineHeight + 2 > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin
+      }
+
       doc.text(textLines, x, currentY)
 
       doc.setFont(undefined, "normal")
@@ -395,6 +530,12 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
       const altMatch = line.match(/alt=["'](.*?)["']/)
 
       if (srcMatch) {
+        // Check if we need a new page
+        if (currentY + lineHeight * 2 > pageHeight - margin) {
+          doc.addPage()
+          currentY = margin
+        }
+
         // Add a placeholder for the image
         doc.setFontSize(9)
         doc.setTextColor(100, 100, 100)
@@ -413,6 +554,12 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
       const match = line.match(/!\[(.*?)\]$$(.*?)$$/)
 
       if (match) {
+        // Check if we need a new page
+        if (currentY + lineHeight * 2 > pageHeight - margin) {
+          doc.addPage()
+          currentY = margin
+        }
+
         // Add a placeholder for the image
         doc.setFontSize(9)
         doc.setTextColor(100, 100, 100)
@@ -428,8 +575,19 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
     // Regular paragraph text
     doc.setFontSize(11)
     const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
-    doc.text(textLines, x, currentY)
-    currentY += textLines.length * lineHeight
+
+    // Process each line of text and check for page breaks
+    for (let j = 0; j < textLines.length; j++) {
+      // Check if we need a new page
+      if (currentY + lineHeight > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin
+      }
+
+      doc.text(textLines[j], x, currentY)
+      currentY += lineHeight
+    }
+
     i++
   }
 
@@ -437,7 +595,15 @@ function renderMarkdownContent(doc: jsPDF, content: string, x: number, y: number
 }
 
 // Add images to PDF
-async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number, maxWidth: number): Promise<number> {
+async function addImagesToPdf(
+  doc: jsPDF,
+  content: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  pageHeight: number,
+  margin: number,
+): Promise<number> {
   let currentY = y
   const imageMargin = 10 // Space between images
   const maxImageHeight = 60 // Maximum height for images in the PDF
@@ -472,6 +638,12 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
   for (const image of imagesToAdd) {
     try {
       console.log("Processing image:", image.src.substring(0, 50) + "...")
+
+      // Check if we need a new page
+      if (currentY + maxImageHeight > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin
+      }
 
       // Skip placeholder images
       if (image.src.includes("/placeholder.svg") || image.src.includes("/generic-placeholder-icon.png")) {
@@ -537,6 +709,12 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
             const finalWidth = finalHeight * aspectRatio
 
             try {
+              // Check if we need a new page for the image
+              if (currentY + finalHeight + 15 > pageHeight - margin) {
+                doc.addPage()
+                currentY = margin
+              }
+
               // Add the image to the PDF with the correct dimensions
               doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
               console.log("Added image to PDF successfully")
@@ -546,8 +724,19 @@ async function addImagesToPdf(doc: jsPDF, content: string, x: number, y: number,
                 doc.setFontSize(8)
                 doc.setTextColor(100, 100, 100)
                 const captionY = currentY + finalHeight + 5
-                doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
-                currentY = captionY + 10
+
+                // Check if caption needs a new page
+                if (captionY + 10 > pageHeight - margin) {
+                  doc.addPage()
+                  currentY = margin
+                  // Re-add the image on the new page
+                  doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
+                  doc.text(image.alt, x, currentY + finalHeight + 5, { align: "left", maxWidth: maxWidth })
+                  currentY = currentY + finalHeight + 15
+                } else {
+                  doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
+                  currentY = captionY + 10
+                }
               } else {
                 currentY += finalHeight + imageMargin
               }
@@ -615,6 +804,13 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       format: "a4",
     })
 
+    // Get page dimensions
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const margin = 15
+    const keyPointsWidth = 45
+    const contentWidth = pageWidth - margin - keyPointsWidth - margin
+
     // Set title - bigger and bold
     doc.setFontSize(22)
     doc.setFont(undefined, "bold")
@@ -632,13 +828,6 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     } else {
       y = 40 // More spacing if no summary
     }
-
-    // Draw the Cornell note structure
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 15
-    const keyPointsWidth = 45
-    const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
     // Draw a single light horizontal line under where the header would be
     doc.setDrawColor(220, 220, 220) // Very light gray
@@ -682,6 +871,8 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         margin + keyPointsWidth + 5,
         y + 5,
         contentWidth - 10,
+        pageHeight,
+        margin,
       )
 
       // Add images after the text content
@@ -691,24 +882,55 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         margin + keyPointsWidth + 5,
         contentEndY + 5,
         contentWidth - 10,
+        pageHeight,
+        margin,
       )
 
-      // Calculate section height
-      const sectionHeight = Math.max(headingHeight, imagesEndY - y)
+      // Calculate section height - need to handle multi-page sections
+      let sectionHeight = 0
+
+      // If we're still on the same page
+      if (doc.getCurrentPageInfo().pageNumber === doc.getNumberOfPages()) {
+        sectionHeight = Math.max(headingHeight, imagesEndY - startY)
+      } else {
+        // If we've moved to a new page, calculate height differently
+        // We'll use the remaining space on the first page plus the used space on subsequent pages
+        sectionHeight = pageHeight - margin - startY
+      }
 
       // Draw section with very light borders
       doc.setDrawColor(230, 230, 230) // Extra light gray for borders
 
       // Draw vertical divider between key points and notes
-      doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, startY + sectionHeight)
+      // We need to draw this on each page that contains this section
+      const currentPage = doc.getCurrentPageInfo().pageNumber
+      const startPage = doc.getNumberOfPages() - (currentPage - 1)
+
+      for (let pageNum = startPage; pageNum <= doc.getNumberOfPages(); pageNum++) {
+        doc.setPage(pageNum)
+
+        if (pageNum === startPage) {
+          // First page of the section
+          doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, pageHeight - margin)
+        } else if (pageNum === doc.getNumberOfPages()) {
+          // Last page of the section
+          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, imagesEndY)
+        } else {
+          // Middle pages of the section
+          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+        }
+      }
+
+      // Set back to the last page
+      doc.setPage(doc.getNumberOfPages())
 
       // Draw horizontal line at the bottom of the section
       if (index < sections.length - 1) {
-        doc.line(margin, startY + sectionHeight, margin + keyPointsWidth + contentWidth, startY + sectionHeight)
+        doc.line(margin, imagesEndY, margin + keyPointsWidth + contentWidth, imagesEndY)
       }
 
       // Update y position for next section
-      y = startY + sectionHeight + 3
+      y = imagesEndY + 3
     }
 
     // Generate the PDF as a blob
