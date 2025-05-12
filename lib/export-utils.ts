@@ -620,7 +620,7 @@ function renderMarkdownContent(
     }
 
     // Add a small gap between paragraphs
-    currentY += lineHeight * 0.2 // Reduced spacing between paragraphs
+    currentY += lineHeight * 0.1 // Minimal spacing between paragraphs
     i++
   }
 
@@ -943,25 +943,27 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.addPage()
         y = margin
 
-        // Draw a single light horizontal line under where the header would be on new pages
-        doc.setDrawColor(220, 220, 220) // Very light gray
-        doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
-
+        // No horizontal line at the top of the page
         y += 8 // Reduced spacing on new pages
       }
 
       const startY = y
       const startPage = doc.getCurrentPageInfo().pageNumber
 
-      // Draw key point (heading)
+      // Draw key point (heading) with increased line spacing
       doc.setFontSize(11)
       doc.setFont(undefined, "bold")
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
-      doc.text(headingLines, margin + 5, y + 5)
+
+      // Increase line spacing for headings
+      const headingLineHeight = 9 // Increased from 7
+      for (let i = 0; i < headingLines.length; i++) {
+        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight)
+      }
       doc.setFont(undefined, "normal")
 
-      // Calculate heading height
-      const headingHeight = headingLines.length * 7 + 5
+      // Calculate heading height with increased spacing
+      const headingHeight = headingLines.length * headingLineHeight + 5
 
       // Create a clipping rectangle for the content area to prevent overflow into other sections
       // This ensures content stays within its section boundaries
@@ -1044,7 +1046,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Set back to the last page
       doc.setPage(endPage)
 
-      // Update y position for next section
+      // Update y position for next section with reduced spacing
       y = imagesEndY + 1 // Reduced spacing between sections
     }
 
@@ -1070,15 +1072,19 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
         doc.setPage(pageNum)
 
-        // Draw the key point heading on the continuation page
+        // Draw the key point heading on the continuation page with increased line spacing
         doc.setFontSize(11)
         doc.setFont(undefined, "bold")
-        doc.text(section.heading, margin + 5, margin + 15)
+        const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
+
+        // Increase line spacing for headings
+        const headingLineHeight = 9 // Increased from 7
+        for (let i = 0; i < headingLines.length; i++) {
+          doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight)
+        }
         doc.setFont(undefined, "normal")
 
-        // Draw the horizontal line at the top of the page
-        doc.setDrawColor(220, 220, 220) // Very light gray
-        doc.line(margin, margin, margin + keyPointsWidth + contentWidth, margin)
+        // No horizontal line at the top of continuation pages
       }
     }
 
