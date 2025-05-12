@@ -161,7 +161,7 @@ function renderTable(
 
   // Set up table styling
   const cellPadding = 2
-  const rowHeight = 10 // Increased row height
+  const rowHeight = 8 // Reduced row height
   let currentY = y
 
   // Check if we need a new page before starting the table
@@ -238,7 +238,7 @@ function renderTable(
     doc.line(x, currentY, x + totalWidth, currentY)
   }
 
-  return currentY + 5 // Return the new Y position after the table
+  return currentY + 3 // Reduced spacing after table
 }
 
 // Render a list in PDF
@@ -253,7 +253,7 @@ function renderList(
   margin: number,
 ): number {
   let currentY = y
-  const lineHeight = 10 // Increased line height
+  const lineHeight = 8 // Reduced line height
   const indent = 5
 
   for (let index = 0; index < listItems.length; index++) {
@@ -288,7 +288,7 @@ function renderList(
     }
   }
 
-  return currentY + 3
+  return currentY + 2 // Reduced spacing after list
 }
 
 // Render a code block in PDF
@@ -301,7 +301,7 @@ function renderCodeBlock(
   pageHeight: number,
   margin: number,
 ): number {
-  const lineHeight = 8 // Increased line height for code
+  const lineHeight = 7 // Reduced line height for code
   let currentY = y
 
   // Check if we need a new page
@@ -339,7 +339,7 @@ function renderCodeBlock(
     currentY += lineHeight
   }
 
-  return currentY + 3
+  return currentY + 2 // Reduced spacing after code block
 }
 
 // Render a blockquote in PDF
@@ -352,7 +352,7 @@ function renderBlockquote(
   pageHeight: number,
   margin: number,
 ): number {
-  const lineHeight = 10 // Increased line height
+  const lineHeight = 8 // Reduced line height
   let currentY = y
   let startY = y
 
@@ -398,7 +398,7 @@ function renderBlockquote(
   // Reset text color
   doc.setTextColor(0, 0, 0)
 
-  return currentY + 3
+  return currentY + 2 // Reduced spacing after blockquote
 }
 
 // Process markdown content for PDF rendering
@@ -413,7 +413,7 @@ function renderMarkdownContent(
 ): number {
   const lines = content.split("\n")
   let currentY = y
-  const lineHeight = 12 // Increased line height for better readability
+  const lineHeight = 10 // Reduced line height for better readability
 
   let i = 0
   while (i < lines.length) {
@@ -427,7 +427,7 @@ function renderMarkdownContent(
 
     // Skip empty lines but add spacing
     if (line.trim() === "") {
-      currentY += lineHeight / 2
+      currentY += lineHeight / 3 // Reduced spacing for empty lines
       i++
       continue
     }
@@ -518,7 +518,7 @@ function renderMarkdownContent(
       doc.setFont(undefined, "normal")
       doc.setFontSize(originalSize)
 
-      currentY += textLines.length * lineHeight + 2
+      currentY += textLines.length * lineHeight + 1 // Reduced spacing after headings
       i++
       continue
     }
@@ -541,7 +541,7 @@ function renderMarkdownContent(
         doc.setTextColor(100, 100, 100)
         doc.text(`[Image: ${altMatch ? altMatch[1] : "Image"}]`, x, currentY)
         doc.setTextColor(0, 0, 0)
-        currentY += lineHeight * 2
+        currentY += lineHeight * 1.5 // Reduced spacing after image placeholders
       }
 
       i++
@@ -565,7 +565,7 @@ function renderMarkdownContent(
         doc.setTextColor(100, 100, 100)
         doc.text(`[Image: ${match[1] || "Image"}]`, x, currentY)
         doc.setTextColor(0, 0, 0)
-        currentY += lineHeight * 2
+        currentY += lineHeight * 1.5 // Reduced spacing after image placeholders
       }
 
       i++
@@ -588,6 +588,8 @@ function renderMarkdownContent(
       currentY += lineHeight
     }
 
+    // Add a small gap between paragraphs
+    currentY += lineHeight * 0.2 // Reduced spacing between paragraphs
     i++
   }
 
@@ -605,7 +607,7 @@ async function addImagesToPdf(
   margin: number,
 ): Promise<number> {
   let currentY = y
-  const imageMargin = 10 // Space between images
+  const imageMargin = 6 // Reduced space between images
   const maxImageHeight = 60 // Maximum height for images in the PDF
 
   // Extract all image URLs (both markdown and HTML)
@@ -651,7 +653,7 @@ async function addImagesToPdf(
         doc.setTextColor(100, 100, 100)
         doc.text(`[Placeholder Image: ${image.alt || "Image"}]`, x, currentY)
         doc.setTextColor(0, 0, 0)
-        currentY += 20
+        currentY += 15 // Reduced spacing for placeholder images
         continue
       }
 
@@ -671,7 +673,7 @@ async function addImagesToPdf(
             doc.setTextColor(100, 100, 100)
             doc.text(`[Image not found: ${image.alt || "Unknown"}]`, x, currentY)
             doc.setTextColor(0, 0, 0)
-            currentY += 20
+            currentY += 15 // Reduced spacing for placeholder images
             continue
           }
         } catch (error) {
@@ -681,7 +683,7 @@ async function addImagesToPdf(
           doc.setTextColor(100, 100, 100)
           doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
           doc.setTextColor(0, 0, 0)
-          currentY += 20
+          currentY += 15 // Reduced spacing for placeholder images
           continue
         }
       }
@@ -710,7 +712,7 @@ async function addImagesToPdf(
 
             try {
               // Check if we need a new page for the image
-              if (currentY + finalHeight + 15 > pageHeight - margin) {
+              if (currentY + finalHeight + 10 > pageHeight - margin) {
                 doc.addPage()
                 currentY = margin
               }
@@ -723,19 +725,19 @@ async function addImagesToPdf(
               if (image.alt) {
                 doc.setFontSize(8)
                 doc.setTextColor(100, 100, 100)
-                const captionY = currentY + finalHeight + 5
+                const captionY = currentY + finalHeight + 3 // Reduced spacing before caption
 
                 // Check if caption needs a new page
-                if (captionY + 10 > pageHeight - margin) {
+                if (captionY + 8 > pageHeight - margin) {
                   doc.addPage()
                   currentY = margin
                   // Re-add the image on the new page
                   doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
-                  doc.text(image.alt, x, currentY + finalHeight + 5, { align: "left", maxWidth: maxWidth })
-                  currentY = currentY + finalHeight + 15
+                  doc.text(image.alt, x, currentY + finalHeight + 3, { align: "left", maxWidth: maxWidth })
+                  currentY = currentY + finalHeight + 8 // Reduced spacing after caption
                 } else {
                   doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
-                  currentY = captionY + 10
+                  currentY = captionY + 8 // Reduced spacing after caption
                 }
               } else {
                 currentY += finalHeight + imageMargin
@@ -747,7 +749,7 @@ async function addImagesToPdf(
               doc.setTextColor(100, 100, 100)
               doc.text(`[Image could not be added to PDF: ${error.message || "Unknown error"}]`, x, currentY)
               doc.setTextColor(0, 0, 0)
-              currentY += 20
+              currentY += 15 // Reduced spacing for placeholder images
             }
             resolve()
           }
@@ -759,7 +761,7 @@ async function addImagesToPdf(
             doc.setTextColor(100, 100, 100)
             doc.text(`[Image could not be loaded]`, x, currentY)
             doc.setTextColor(0, 0, 0)
-            currentY += 20
+            currentY += 15 // Reduced spacing for placeholder images
             resolve()
           }
 
@@ -773,7 +775,7 @@ async function addImagesToPdf(
         doc.setTextColor(100, 100, 100)
         doc.text(`[Image: ${image.alt || image.src}]`, x, currentY)
         doc.setTextColor(0, 0, 0)
-        currentY += 20
+        currentY += 15 // Reduced spacing for placeholder images
       }
     } catch (error) {
       console.error(`Failed to add image to PDF: ${image.src}`, error)
@@ -782,7 +784,7 @@ async function addImagesToPdf(
       doc.setTextColor(100, 100, 100)
       doc.text(`[Image could not be loaded: ${error.message || "Unknown error"}]`, x, currentY)
       doc.setTextColor(0, 0, 0)
-      currentY += 20
+      currentY += 15 // Reduced spacing for placeholder images
     }
   }
 
@@ -824,9 +826,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Removed the "Summary:" label, just show the summary content directly
       const summaryLines = doc.splitTextToSize(summary, 180)
       doc.text(summaryLines, 15, y)
-      y += summaryLines.length * 6 + 7.5 // Reduced spacing after summary by half (from 15 to 7.5)
+      y += summaryLines.length * 6 + 5 // Reduced spacing after summary
     } else {
-      y = 40 // More spacing if no summary
+      y = 35 // Reduced spacing if no summary
     }
 
     // Draw a single light horizontal line under where the header would be
@@ -834,7 +836,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
 
     // Draw content with minimal styling
-    y += 10 // Increased spacing between header and content
+    y += 8 // Reduced spacing between header and content
 
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
@@ -848,7 +850,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.setDrawColor(220, 220, 220) // Very light gray
         doc.line(margin, y + 7, margin + keyPointsWidth + contentWidth, y + 7)
 
-        y += 10
+        y += 8 // Reduced spacing on new pages
       }
 
       const startY = y
@@ -880,7 +882,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc,
         section.content,
         margin + keyPointsWidth + 5,
-        contentEndY + 5,
+        contentEndY + 3, // Reduced spacing before images
         contentWidth - 10,
         pageHeight,
         margin,
@@ -930,7 +932,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
 
       // Update y position for next section
-      y = imagesEndY + 3
+      y = imagesEndY + 2 // Reduced spacing between sections
     }
 
     // Generate the PDF as a blob
