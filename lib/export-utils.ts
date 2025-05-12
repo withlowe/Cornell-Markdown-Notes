@@ -147,6 +147,7 @@ function renderTable(
 
   // Extract header row and separator row
   const headerRow = tableRows[0]
+  const separatorRow = tableRows[1]
   const contentRows = tableRows.slice(2) // Skip the separator row
 
   // Parse columns from header row
@@ -160,8 +161,8 @@ function renderTable(
   const columnWidth = totalWidth / columns.length
 
   // Set up table styling
-  const cellPadding = 2
-  const rowHeight = 8 // Reduced row height
+  const cellPadding = 4 // Increased cell padding
+  const rowHeight = 10 // Increased row height for better spacing
   let currentY = y
 
   // Check if we need a new page before starting the table
@@ -174,10 +175,40 @@ function renderTable(
   doc.setFontSize(11) // Standardized font size for all text
   doc.setFont(undefined, "bold")
 
+  // Draw header background
+  doc.setFillColor(245, 245, 245) // Light gray background for header
+  doc.rect(x, currentY, totalWidth, rowHeight, "F")
+
   let currentX = x
-  columns.forEach((col) => {
-    // Draw header cell - add slight padding to top
-    doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding + 1.5)
+  columns.forEach((col, colIndex) => {
+    // Draw header cell - add padding to top and sides
+    const colText = cleanMarkdown(col)
+
+    // Get alignment from separator row
+    const separatorCells = separatorRow.split("|").slice(1, -1)
+    const alignmentCell = separatorCells[colIndex] || "---"
+    let textAlign: "left" | "center" | "right" = "left"
+
+    if (alignmentCell.trim().startsWith(":") && alignmentCell.trim().endsWith(":")) {
+      textAlign = "center"
+    } else if (alignmentCell.trim().endsWith(":")) {
+      textAlign = "right"
+    }
+
+    // Calculate text position based on alignment
+    let textX = currentX + cellPadding
+    if (textAlign === "center") {
+      textX = currentX + columnWidth / 2
+    } else if (textAlign === "right") {
+      textX = currentX + columnWidth - cellPadding
+    }
+
+    // Draw text with proper alignment
+    doc.text(colText, textX, currentY + rowHeight / 2 + 1.5, {
+      align: textAlign,
+      baseline: "middle",
+    })
+
     currentX += columnWidth
   })
 
@@ -200,12 +231,44 @@ function renderTable(
       // Redraw header on new page
       doc.setFontSize(11) // Standardized font size for all text
       doc.setFont(undefined, "bold")
+
+      // Draw header background
+      doc.setFillColor(245, 245, 245) // Light gray background for header
+      doc.rect(x, currentY, totalWidth, rowHeight, "F")
+
       currentX = x
-      columns.forEach((col) => {
-        // Draw header cell - add slight padding to top
-        doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding + 1.5)
+      columns.forEach((col, colIndex) => {
+        // Draw header cell with proper alignment
+        const colText = cleanMarkdown(col)
+
+        // Get alignment from separator row
+        const separatorCells = separatorRow.split("|").slice(1, -1)
+        const alignmentCell = separatorCells[colIndex] || "---"
+        let textAlign: "left" | "center" | "right" = "left"
+
+        if (alignmentCell.trim().startsWith(":") && alignmentCell.trim().endsWith(":")) {
+          textAlign = "center"
+        } else if (alignmentCell.trim().endsWith(":")) {
+          textAlign = "right"
+        }
+
+        // Calculate text position based on alignment
+        let textX = currentX + cellPadding
+        if (textAlign === "center") {
+          textX = currentX + columnWidth / 2
+        } else if (textAlign === "right") {
+          textX = currentX + columnWidth - cellPadding
+        }
+
+        // Draw text with proper alignment
+        doc.text(colText, textX, currentY + rowHeight / 2 + 1.5, {
+          align: textAlign,
+          baseline: "middle",
+        })
+
         currentX += columnWidth
       })
+
       doc.setFont(undefined, "normal")
       currentY += rowHeight
 
@@ -214,32 +277,80 @@ function renderTable(
       doc.line(x, currentY, x + totalWidth, currentY)
     }
 
+    // Draw row background (alternating)
+    if (rowIndex % 2 === 1) {
+      doc.setFillColor(250, 250, 250) // Very light gray for alternating rows
+      doc.rect(x, currentY, totalWidth, rowHeight, "F")
+    }
+
     const cells = row
       .split("|")
       .slice(1, -1)
       .map((cell) => cell.trim())
     currentX = x
 
-    cells.forEach((cell, i) => {
-      if (i < columns.length) {
-        // Draw cell content - add slight padding to top
-        const cellText = cleanMarkdown(cell)
-        const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
-        const cellHeight = cellLines.length * rowHeight
+    cells.forEach((cell, colIndex) => {
+      if (colIndex < columns.length) {
+        // Get alignment from separator row
+        const separatorCells = separatorRow.split("|").slice(1, -1)
+        const alignmentCell = separatorCells[colIndex] || "---"
+        let textAlign: "left" | "center" | "right" = "left"
 
-        doc.text(cellLines, currentX + cellPadding, currentY + rowHeight - cellPadding + 1.5)
+        if (alignmentCell.trim().startsWith(":") && alignmentCell.trim().endsWith(":")) {
+          textAlign = "center"
+        } else if (alignmentCell.trim().endsWith(":")) {
+          textAlign = "right"
+        }
+
+        // Calculate text position based on alignment
+        let textX = currentX + cellPadding
+        if (textAlign === "center") {
+          textX = currentX + columnWidth / 2
+        } else if (textAlign === "right") {
+          textX = currentX + columnWidth - cellPadding
+        }
+
+        // Draw cell content with proper alignment
+        const cellText = cleanMarkdown(cell)
+
+        // Handle multi-line cell content
+        const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
+
+        // Calculate vertical position for text (centered in cell)
+        const lineHeight = doc.getTextDimensions("Text").h * 1.2
+        const totalTextHeight = cellLines.length * lineHeight
+        let textY = currentY + rowHeight / 2 - totalTextHeight / 2 + lineHeight
+
+        // Ensure minimum padding
+        textY = Math.max(textY, currentY + cellPadding)
+
+        // Draw each line of text
+        for (let i = 0; i < cellLines.length; i++) {
+          doc.text(cellLines[i], textX, textY + i * lineHeight, {
+            align: textAlign,
+            baseline: "top",
+          })
+        }
+
         currentX += columnWidth
       }
     })
 
+    // Draw vertical grid lines
+    currentX = x
+    for (let i = 0; i <= columns.length; i++) {
+      doc.line(currentX, currentY, currentX, currentY + rowHeight)
+      currentX += columnWidth
+    }
+
     currentY += rowHeight
 
-    // Draw row separator
-    doc.setDrawColor(230, 230, 230)
+    // Draw horizontal grid line
+    doc.setDrawColor(220, 220, 220)
     doc.line(x, currentY, x + totalWidth, currentY)
   }
 
-  return currentY + 1.5 // Further reduced spacing after table
+  return currentY + 6 // Increased from 1.5 to 6mm for more space below tables
 }
 
 // Render a list in PDF
