@@ -171,6 +171,13 @@ function renderTable(
     currentY = margin
   }
 
+  // Draw outer border around the entire table
+  const tableHeight = rowHeight * tableRows.length
+  doc.setDrawColor(100, 100, 100) // Darker border for the outer edge
+  doc.setLineWidth(0.3) // Slightly thicker line for outer border
+  doc.rect(x, currentY, totalWidth, tableHeight)
+  doc.setLineWidth(0.2) // Reset line width
+
   // Draw table header
   doc.setFontSize(11) // Standardized font size for all text
   doc.setFont(undefined, "bold")
@@ -305,10 +312,9 @@ function renderTable(
         // Calculate vertical position for text (centered in cell)
         const lineHeight = doc.getTextDimensions("Text").h * 1.2
         const totalTextHeight = cellLines.length * lineHeight
-        let textY = currentY + rowHeight / 2 - totalTextHeight / 2 + lineHeight
 
-        // Ensure minimum padding
-        textY = Math.max(textY, currentY + cellPadding)
+        // Center text vertically in the cell
+        const textY = currentY + rowHeight / 2 - totalTextHeight / 2 + lineHeight
 
         // Draw each line of text
         for (let i = 0; i < cellLines.length; i++) {
@@ -1013,8 +1019,8 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     if (summary) {
       doc.setFontSize(11) // Standardized font size for all text
 
-      // Slightly reduced line spacing for summary text (was 8, now 7)
-      const summaryLineHeight = 8 // Standardized line height for all text
+      // Reduced line spacing for summary text
+      const summaryLineHeight = 6.5 // Reduced line height for summary text
       const summaryLines = doc.splitTextToSize(summary, 180)
 
       // Apply increased line spacing by manually positioning each line
@@ -1024,7 +1030,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
 
       // Calculate total height used by summary
-      y += summaryLines.length * summaryLineHeight + 5 // Reduced spacing after summary
+      y += summaryLines.length * summaryLineHeight + 4 // Further reduced spacing after summary
     } else {
       y = 35 // Reduced spacing if no summary
     }
@@ -1067,8 +1073,8 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       doc.setFont(undefined, "bold")
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-      // Increase line spacing for headings
-      const headingLineHeight = 8 // Standardized line height for all text
+      // Reduced line spacing for headings
+      const headingLineHeight = 6.5 // Reduced line height for headings
       for (let i = 0; i < headingLines.length; i++) {
         // Add slight padding to top
         doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
@@ -1190,8 +1196,8 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.setFont(undefined, "bold")
         const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-        // Increase line spacing for headings
-        const headingLineHeight = 8 // Standardized line height for all text
+        // Reduced line spacing for headings
+        const headingLineHeight = 6.5 // Reduced line height for headings
         for (let i = 0; i < headingLines.length; i++) {
           // Add slight padding to top
           doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
