@@ -431,7 +431,7 @@ function renderMarkdownContent(
       currentY = margin
 
       // Reset text properties after page break to ensure consistency
-      doc.setFontSize(11)
+      doc.setFontSize(10) // Updated font size
       doc.setTextColor(0, 0, 0)
 
       // Draw the section divider on the new page - only if we're not at the last section
@@ -590,7 +590,7 @@ function renderMarkdownContent(
     }
 
     // Regular paragraph text
-    doc.setFontSize(11)
+    doc.setFontSize(10)
     const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
 
     // Process each line of text and check for page breaks
@@ -604,7 +604,7 @@ function renderMarkdownContent(
         currentY = margin
 
         // Reset text properties after page break to ensure consistency
-        doc.setFontSize(11)
+        doc.setFontSize(10) // Updated font size
         doc.setTextColor(0, 0, 0)
 
         // Draw the section divider on the new page - only if we're not at the last section
@@ -615,7 +615,7 @@ function renderMarkdownContent(
         }
       }
 
-      doc.text(textLines[j], x, currentY)
+      doc.text(textLines[j], x, currentY + 1) // More space at top, less at bottom
       currentY += lineHeight
     }
 
@@ -900,7 +900,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     // Add summary if provided - removed the "Summary:" label
     let y = 30 // More spacing after title
     if (summary) {
-      doc.setFontSize(11) // Match the markdown text size
+      doc.setFontSize(10) // Slightly smaller font size for summary
 
       // Slightly reduced line spacing for summary text (was 8, now 7)
       const summaryLineHeight = 7
@@ -956,7 +956,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
       // Increase line spacing for headings
-      const headingLineHeight = 9 // Increased from 7
+      const headingLineHeight = 8 // Slightly decreased from 9
       for (let i = 0; i < headingLines.length; i++) {
         doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight)
       }
@@ -1073,12 +1073,12 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.setPage(pageNum)
 
         // Draw the key point heading on the continuation page with increased line spacing
-        doc.setFontSize(11)
+        doc.setFontSize(10)
         doc.setFont(undefined, "bold")
         const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
         // Increase line spacing for headings
-        const headingLineHeight = 9 // Increased from 7
+        const headingLineHeight = 8 // Slightly decreased from 9
         for (let i = 0; i < headingLines.length; i++) {
           doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight)
         }
