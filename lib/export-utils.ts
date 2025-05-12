@@ -130,7 +130,7 @@ function cleanMarkdown(text: string): string {
   return cleaned
 }
 
-// Render a table in PDF
+// Render a table in PDF - simplified version for less ink usage
 function renderTable(
   doc: jsPDF,
   tableText: string[],
@@ -175,10 +175,6 @@ function renderTable(
   doc.setFontSize(11) // Standardized font size for all text
   doc.setFont(undefined, "bold")
 
-  // Draw header background
-  doc.setFillColor(245, 245, 245) // Light gray background for header
-  doc.rect(x, currentY, totalWidth, rowHeight, "F")
-
   let currentX = x
   columns.forEach((col, colIndex) => {
     // Draw header cell - add padding to top and sides
@@ -215,8 +211,8 @@ function renderTable(
   doc.setFont(undefined, "normal")
   currentY += rowHeight
 
-  // Draw header separator
-  doc.setDrawColor(200, 200, 200)
+  // Draw header separator - minimal line
+  doc.setDrawColor(150, 150, 150)
   doc.line(x, currentY, x + totalWidth, currentY)
 
   // Draw content rows
@@ -231,10 +227,6 @@ function renderTable(
       // Redraw header on new page
       doc.setFontSize(11) // Standardized font size for all text
       doc.setFont(undefined, "bold")
-
-      // Draw header background
-      doc.setFillColor(245, 245, 245) // Light gray background for header
-      doc.rect(x, currentY, totalWidth, rowHeight, "F")
 
       currentX = x
       columns.forEach((col, colIndex) => {
@@ -272,15 +264,9 @@ function renderTable(
       doc.setFont(undefined, "normal")
       currentY += rowHeight
 
-      // Redraw header separator
-      doc.setDrawColor(200, 200, 200)
+      // Redraw header separator - minimal line
+      doc.setDrawColor(150, 150, 150)
       doc.line(x, currentY, x + totalWidth, currentY)
-    }
-
-    // Draw row background (alternating)
-    if (rowIndex % 2 === 1) {
-      doc.setFillColor(250, 250, 250) // Very light gray for alternating rows
-      doc.rect(x, currentY, totalWidth, rowHeight, "F")
     }
 
     const cells = row
@@ -336,18 +322,15 @@ function renderTable(
       }
     })
 
-    // Draw vertical grid lines
-    currentX = x
-    for (let i = 0; i <= columns.length; i++) {
-      doc.line(currentX, currentY, currentX, currentY + rowHeight)
-      currentX += columnWidth
-    }
-
     currentY += rowHeight
 
-    // Draw horizontal grid line
-    doc.setDrawColor(220, 220, 220)
-    doc.line(x, currentY, x + totalWidth, currentY)
+    // Draw horizontal row separator (only a light line)
+    if (rowIndex < contentRows.length - 1) {
+      doc.setDrawColor(220, 220, 220) // Very light gray for minimal ink usage
+      doc.setLineWidth(0.1) // Thinner line
+      doc.line(x, currentY, x + totalWidth, currentY)
+      doc.setLineWidth(0.2) // Reset line width
+    }
   }
 
   return currentY + 6 // Increased from 1.5 to 6mm for more space below tables
