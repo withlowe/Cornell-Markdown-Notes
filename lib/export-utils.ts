@@ -171,13 +171,6 @@ function renderTable(
     currentY = margin
   }
 
-  // Draw outer border around the entire table
-  const tableHeight = rowHeight * tableRows.length
-  doc.setDrawColor(100, 100, 100) // Darker border for the outer edge
-  doc.setLineWidth(0.3) // Slightly thicker line for outer border
-  doc.rect(x, currentY, totalWidth, tableHeight)
-  doc.setLineWidth(0.2) // Reset line width
-
   // Draw table header
   doc.setFontSize(11) // Standardized font size for all text
   doc.setFont(undefined, "bold")
@@ -309,12 +302,9 @@ function renderTable(
         // Handle multi-line cell content
         const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
 
-        // Calculate vertical position for text (centered in cell)
+        // Calculate vertical position for text (top-aligned)
         const lineHeight = doc.getTextDimensions("Text").h * 1.2
-        const totalTextHeight = cellLines.length * lineHeight
-
-        // Center text vertically in the cell
-        const textY = currentY + rowHeight / 2 - totalTextHeight / 2 + lineHeight
+        const textY = currentY + cellPadding
 
         // Draw each line of text
         for (let i = 0; i < cellLines.length; i++) {
