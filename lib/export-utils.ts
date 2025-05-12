@@ -410,6 +410,9 @@ function renderMarkdownContent(
   maxWidth: number,
   pageHeight: number,
   margin: number,
+  keyPointsWidth: number,
+  fullWidth: number,
+  sectionInfo: { currentSection: number; totalSections: number },
 ): number {
   const lines = content.split("\n")
   let currentY = y
@@ -421,12 +424,22 @@ function renderMarkdownContent(
 
     // Check if we need a new page
     if (currentY + lineHeight > pageHeight - margin) {
+      // Store current page number before adding a new page
+      const currentPage = doc.getCurrentPageInfo().pageNumber
+
       doc.addPage()
       currentY = margin
 
       // Reset text properties after page break to ensure consistency
       doc.setFontSize(11)
       doc.setTextColor(0, 0, 0)
+
+      // Draw the section divider on the new page - only if we're not at the last section
+      if (sectionInfo.currentSection < sectionInfo.totalSections) {
+        // Draw the vertical divider
+        doc.setDrawColor(230, 230, 230)
+        doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+      }
     }
 
     // Skip empty lines but add spacing
@@ -584,12 +597,22 @@ function renderMarkdownContent(
     for (let j = 0; j < textLines.length; j++) {
       // Check if we need a new page
       if (currentY + lineHeight > pageHeight - margin) {
+        // Store current page number before adding a new page
+        const currentPage = doc.getCurrentPageInfo().pageNumber
+
         doc.addPage()
         currentY = margin
 
         // Reset text properties after page break to ensure consistency
         doc.setFontSize(11)
         doc.setTextColor(0, 0, 0)
+
+        // Draw the section divider on the new page - only if we're not at the last section
+        if (sectionInfo.currentSection < sectionInfo.totalSections) {
+          // Draw the vertical divider
+          doc.setDrawColor(230, 230, 230)
+          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+        }
       }
 
       doc.text(textLines[j], x, currentY)
@@ -613,6 +636,9 @@ async function addImagesToPdf(
   maxWidth: number,
   pageHeight: number,
   margin: number,
+  keyPointsWidth: number,
+  fullWidth: number,
+  sectionInfo: { currentSection: number; totalSections: number },
 ): Promise<number> {
   let currentY = y
   const imageMargin = 6 // Reduced space between images
@@ -651,12 +677,22 @@ async function addImagesToPdf(
 
       // Check if we need a new page
       if (currentY + maxImageHeight > pageHeight - margin) {
+        // Store current page number before adding a new page
+        const currentPage = doc.getCurrentPageInfo().pageNumber
+
         doc.addPage()
         currentY = margin
 
         // Reset text properties after page break
         doc.setFontSize(11)
         doc.setTextColor(0, 0, 0)
+
+        // Draw the section divider on the new page - only if we're not at the last section
+        if (sectionInfo.currentSection < sectionInfo.totalSections) {
+          // Draw the vertical divider
+          doc.setDrawColor(230, 230, 230)
+          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+        }
       }
 
       // Skip placeholder images
@@ -725,8 +761,18 @@ async function addImagesToPdf(
             try {
               // Check if we need a new page for the image
               if (currentY + finalHeight + 10 > pageHeight - margin) {
+                // Store current page number before adding a new page
+                const currentPage = doc.getCurrentPageInfo().pageNumber
+
                 doc.addPage()
                 currentY = margin
+
+                // Draw the section divider on the new page - only if we're not at the last section
+                if (sectionInfo.currentSection < sectionInfo.totalSections) {
+                  // Draw the vertical divider
+                  doc.setDrawColor(230, 230, 230)
+                  doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+                }
               }
 
               // Add the image to the PDF with the correct dimensions
@@ -741,12 +787,22 @@ async function addImagesToPdf(
 
                 // Check if caption needs a new page
                 if (captionY + 8 > pageHeight - margin) {
+                  // Store current page number before adding a new page
+                  const currentPage = doc.getCurrentPageInfo().pageNumber
+
                   doc.addPage()
                   currentY = margin
 
                   // Reset text properties
                   doc.setFontSize(11)
                   doc.setTextColor(0, 0, 0)
+
+                  // Draw the section divider on the new page - only if we're not at the last section
+                  if (sectionInfo.currentSection < sectionInfo.totalSections) {
+                    // Draw the vertical divider
+                    doc.setDrawColor(230, 230, 230)
+                    doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+                  }
 
                   // Re-add the image on the new page
                   doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
@@ -846,8 +902,8 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     if (summary) {
       doc.setFontSize(11) // Match the markdown text size
 
-      // Increased line spacing for summary text (was 6, now 8)
-      const summaryLineHeight = 8
+      // Slightly reduced line spacing for summary text (was 8, now 7)
+      const summaryLineHeight = 7
       const summaryLines = doc.splitTextToSize(summary, 180)
 
       // Apply increased line spacing by manually positioning each line
@@ -870,6 +926,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
     // Track section boundaries for proper horizontal line alignment
     const sectionBoundaries = []
+
+    // Track pages that contain continuation of sections
+    const continuationPages = new Map<number, number>() // page number -> section index
 
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
@@ -904,6 +963,12 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       const contentStartX = margin + keyPointsWidth + 5
       const contentStartY = y + 5
 
+      // Pass section info to the rendering functions
+      const sectionInfo = {
+        currentSection: index,
+        totalSections: sections.length,
+      }
+
       // Draw content with improved markdown rendering
       doc.setFontSize(11)
       const contentEndY = renderMarkdownContent(
@@ -914,6 +979,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         contentWidth - 10,
         pageHeight,
         margin,
+        keyPointsWidth,
+        pageWidth - margin * 2,
+        sectionInfo,
       )
 
       // Add images after the text content
@@ -925,6 +993,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         contentWidth - 10,
         pageHeight,
         margin,
+        keyPointsWidth,
+        pageWidth - margin * 2,
+        sectionInfo,
       )
 
       // Store section boundary information for proper line drawing
@@ -936,6 +1007,13 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         endY: imagesEndY,
         endPage,
       })
+
+      // Track all pages that contain this section
+      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+        if (pageNum > startPage) {
+          continuationPages.set(pageNum, index)
+        }
+      }
 
       // Draw section with very light borders
       doc.setDrawColor(230, 230, 230) // Extra light gray for borders
@@ -956,12 +1034,6 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
           // Middle pages of the section
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
         }
-
-        // Add horizontal lines at top of each page (except first page)
-        if (pageNum > startPage) {
-          // Top horizontal line on continuation pages
-          doc.line(margin, margin, margin + keyPointsWidth + contentWidth, margin)
-        }
       }
 
       // Set back to the last page
@@ -981,6 +1053,27 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.setPage(section.endPage)
         doc.setDrawColor(230, 230, 230) // Extra light gray for borders
         doc.line(margin, section.endY, margin + keyPointsWidth + contentWidth, section.endY)
+      }
+    }
+
+    // Handle continuation pages - draw the key point heading on continuation pages
+    const totalPages = doc.getNumberOfPages()
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      if (continuationPages.has(pageNum)) {
+        const sectionIndex = continuationPages.get(pageNum)!
+        const section = sections[sectionIndex]
+
+        doc.setPage(pageNum)
+
+        // Draw the key point heading on the continuation page
+        doc.setFontSize(11)
+        doc.setFont(undefined, "bold")
+        doc.text(section.heading, margin + 5, margin + 5)
+        doc.setFont(undefined, "normal")
+
+        // Draw the horizontal line at the top of the page
+        doc.setDrawColor(220, 220, 220) // Very light gray
+        doc.line(margin, margin, margin + keyPointsWidth + contentWidth, margin)
       }
     }
 
