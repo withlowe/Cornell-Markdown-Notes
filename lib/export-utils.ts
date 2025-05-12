@@ -171,13 +171,13 @@ function renderTable(
   }
 
   // Draw table header
-  doc.setFontSize(9)
+  doc.setFontSize(10) // Standardized font size
   doc.setFont(undefined, "bold")
 
   let currentX = x
   columns.forEach((col) => {
-    // Draw header cell
-    doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding)
+    // Draw header cell - add slight padding to top
+    doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding + 1.5)
     currentX += columnWidth
   })
 
@@ -198,11 +198,12 @@ function renderTable(
       currentY = margin
 
       // Redraw header on new page
-      doc.setFontSize(9)
+      doc.setFontSize(10) // Standardized font size
       doc.setFont(undefined, "bold")
       currentX = x
       columns.forEach((col) => {
-        doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding)
+        // Draw header cell - add slight padding to top
+        doc.text(cleanMarkdown(col), currentX + cellPadding, currentY + rowHeight - cellPadding + 1.5)
         currentX += columnWidth
       })
       doc.setFont(undefined, "normal")
@@ -221,12 +222,12 @@ function renderTable(
 
     cells.forEach((cell, i) => {
       if (i < columns.length) {
-        // Draw cell content
+        // Draw cell content - add slight padding to top
         const cellText = cleanMarkdown(cell)
         const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
         const cellHeight = cellLines.length * rowHeight
 
-        doc.text(cellLines, currentX + cellPadding, currentY + rowHeight - cellPadding)
+        doc.text(cellLines, currentX + cellPadding, currentY + rowHeight - cellPadding + 1.5)
         currentX += columnWidth
       }
     })
@@ -269,8 +270,8 @@ function renderList(
     const marker = isNumbered ? `${index + 1}.` : "•"
     const markerWidth = doc.getTextWidth(isNumbered ? `${marker} ` : `${marker}  `)
 
-    // Draw the marker
-    doc.text(marker, x, currentY)
+    // Draw the marker - add slight padding to top
+    doc.text(marker, x, currentY + 1.5)
 
     // Draw the list item text with wrapping
     const itemText = cleanMarkdown(item.trim())
@@ -283,7 +284,8 @@ function renderList(
         currentY = margin
       }
 
-      doc.text(textLines[lineIndex], x + markerWidth + indent, currentY)
+      // Add slight padding to top
+      doc.text(textLines[lineIndex], x + markerWidth + indent, currentY + 1.5)
       currentY += lineHeight
     }
   }
@@ -317,7 +319,7 @@ function renderCodeBlock(
   doc.rect(x, currentY, maxWidth, blockHeight, "F")
 
   // Set monospace font for code
-  doc.setFontSize(8)
+  doc.setFontSize(10) // Standardized font size
 
   // Draw each line of code
   for (let i = 0; i < codeLines.length; i++) {
@@ -335,7 +337,8 @@ function renderCodeBlock(
       doc.rect(x, currentY, maxWidth, remainingHeight, "F")
     }
 
-    doc.text(codeLines[i], x + 3, currentY + 5)
+    // Add slight padding to top
+    doc.text(codeLines[i], x + 3, currentY + 5 + 1.5)
     currentY += lineHeight
   }
 
@@ -386,7 +389,8 @@ function renderBlockquote(
         startY = margin
       }
 
-      doc.text(textLines[j], x + 5, currentY)
+      // Add slight padding to top
+      doc.text(textLines[j], x + 5, currentY + 1.5)
       currentY += lineHeight
     }
   }
@@ -431,7 +435,7 @@ function renderMarkdownContent(
       currentY = margin
 
       // Reset text properties after page break to ensure consistency
-      doc.setFontSize(10) // Updated font size
+      doc.setFontSize(10) // Standardized font size
       doc.setTextColor(0, 0, 0)
 
       // Draw the section divider on the new page - only if we're not at the last section
@@ -530,7 +534,8 @@ function renderMarkdownContent(
         currentY = margin
       }
 
-      doc.text(textLines, x, currentY)
+      // Add slight padding to top
+      doc.text(textLines, x, currentY + 1.5)
 
       doc.setFont(undefined, "normal")
       doc.setFontSize(originalSize)
@@ -554,9 +559,10 @@ function renderMarkdownContent(
         }
 
         // Add a placeholder for the image
-        doc.setFontSize(9)
+        doc.setFontSize(10) // Standardized font size
         doc.setTextColor(100, 100, 100)
-        doc.text(`[Image: ${altMatch ? altMatch[1] : "Image"}]`, x, currentY)
+        // Add slight padding to top
+        doc.text(`[Image: ${altMatch ? altMatch[1] : "Image"}]`, x, currentY + 1.5)
         doc.setTextColor(0, 0, 0)
         currentY += lineHeight * 1.5 // Reduced spacing after image placeholders
       }
@@ -578,9 +584,10 @@ function renderMarkdownContent(
         }
 
         // Add a placeholder for the image
-        doc.setFontSize(9)
+        doc.setFontSize(10) // Standardized font size
         doc.setTextColor(100, 100, 100)
-        doc.text(`[Image: ${match[1] || "Image"}]`, x, currentY)
+        // Add slight padding to top
+        doc.text(`[Image: ${match[1] || "Image"}]`, x, currentY + 1.5)
         doc.setTextColor(0, 0, 0)
         currentY += lineHeight * 1.5 // Reduced spacing after image placeholders
       }
@@ -590,7 +597,7 @@ function renderMarkdownContent(
     }
 
     // Regular paragraph text
-    doc.setFontSize(10)
+    doc.setFontSize(10) // Standardized font size
     const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
 
     // Process each line of text and check for page breaks
@@ -604,7 +611,7 @@ function renderMarkdownContent(
         currentY = margin
 
         // Reset text properties after page break to ensure consistency
-        doc.setFontSize(10) // Updated font size
+        doc.setFontSize(10) // Standardized font size
         doc.setTextColor(0, 0, 0)
 
         // Draw the section divider on the new page - only if we're not at the last section
@@ -615,7 +622,8 @@ function renderMarkdownContent(
         }
       }
 
-      doc.text(textLines[j], x, currentY + 1) // More space at top, less at bottom
+      // Add slight padding to top (increased from 1 to 1.5)
+      doc.text(textLines[j], x, currentY + 1.5)
       currentY += lineHeight
     }
 
@@ -684,7 +692,7 @@ async function addImagesToPdf(
         currentY = margin
 
         // Reset text properties after page break
-        doc.setFontSize(11)
+        doc.setFontSize(10) // Standardized font size
         doc.setTextColor(0, 0, 0)
 
         // Draw the section divider on the new page - only if we're not at the last section
@@ -697,9 +705,10 @@ async function addImagesToPdf(
 
       // Skip placeholder images
       if (image.src.includes("/placeholder.svg") || image.src.includes("/generic-placeholder-icon.png")) {
-        doc.setFontSize(9)
+        doc.setFontSize(10) // Standardized font size
         doc.setTextColor(100, 100, 100)
-        doc.text(`[Placeholder Image: ${image.alt || "Image"}]`, x, currentY)
+        // Add slight padding to top
+        doc.text(`[Placeholder Image: ${image.alt || "Image"}]`, x, currentY + 1.5)
         doc.setTextColor(0, 0, 0)
         currentY += 15 // Reduced spacing for placeholder images
         continue
@@ -717,9 +726,10 @@ async function addImagesToPdf(
             image.src = imageData
           } else {
             // Use a placeholder if image not found
-            doc.setFontSize(9)
+            doc.setFontSize(10) // Standardized font size
             doc.setTextColor(100, 100, 100)
-            doc.text(`[Image not found: ${image.alt || "Unknown"}]`, x, currentY)
+            // Add slight padding to top
+            doc.text(`[Image not found: ${image.alt || "Unknown"}]`, x, currentY + 1.5)
             doc.setTextColor(0, 0, 0)
             currentY += 15 // Reduced spacing for placeholder images
             continue
@@ -727,9 +737,10 @@ async function addImagesToPdf(
         } catch (error) {
           console.error("Error loading image from storage:", error)
           // Use a placeholder if loading fails
-          doc.setFontSize(9)
+          doc.setFontSize(10) // Standardized font size
           doc.setTextColor(100, 100, 100)
-          doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY)
+          // Add slight padding to top
+          doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY + 1.5)
           doc.setTextColor(0, 0, 0)
           currentY += 15 // Reduced spacing for placeholder images
           continue
@@ -781,7 +792,7 @@ async function addImagesToPdf(
 
               // Add caption if there's alt text
               if (image.alt) {
-                doc.setFontSize(8)
+                doc.setFontSize(10) // Standardized font size
                 doc.setTextColor(100, 100, 100)
                 const captionY = currentY + finalHeight + 3 // Reduced spacing before caption
 
@@ -794,7 +805,7 @@ async function addImagesToPdf(
                   currentY = margin
 
                   // Reset text properties
-                  doc.setFontSize(11)
+                  doc.setFontSize(10) // Standardized font size
                   doc.setTextColor(0, 0, 0)
 
                   // Draw the section divider on the new page - only if we're not at the last section
@@ -808,13 +819,15 @@ async function addImagesToPdf(
                   doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
 
                   // Set caption font properties
-                  doc.setFontSize(8)
+                  doc.setFontSize(10) // Standardized font size
                   doc.setTextColor(100, 100, 100)
 
-                  doc.text(image.alt, x, currentY + finalHeight + 3, { align: "left", maxWidth: maxWidth })
+                  // Add slight padding to top
+                  doc.text(image.alt, x, currentY + finalHeight + 3 + 1.5, { align: "left", maxWidth: maxWidth })
                   currentY = currentY + finalHeight + 8 // Reduced spacing after caption
                 } else {
-                  doc.text(image.alt, x, captionY, { align: "left", maxWidth: maxWidth })
+                  // Add slight padding to top
+                  doc.text(image.alt, x, captionY + 1.5, { align: "left", maxWidth: maxWidth })
                   currentY = captionY + 8 // Reduced spacing after caption
                 }
               } else {
@@ -823,9 +836,10 @@ async function addImagesToPdf(
             } catch (error) {
               console.error("Error adding image to PDF:", error)
               // Use a placeholder if adding fails
-              doc.setFontSize(9)
+              doc.setFontSize(10) // Standardized font size
               doc.setTextColor(100, 100, 100)
-              doc.text(`[Image could not be added to PDF: ${error.message || "Unknown error"}]`, x, currentY)
+              // Add slight padding to top
+              doc.text(`[Image could not be added to PDF: ${error.message || "Unknown error"}]`, x, currentY + 1.5)
               doc.setTextColor(0, 0, 0)
               currentY += 15 // Reduced spacing for placeholder images
             }
@@ -835,9 +849,10 @@ async function addImagesToPdf(
           img.onerror = () => {
             console.error("Error loading image")
             // Use a placeholder if loading fails
-            doc.setFontSize(9)
+            doc.setFontSize(10) // Standardized font size
             doc.setTextColor(100, 100, 100)
-            doc.text(`[Image could not be loaded]`, x, currentY)
+            // Add slight padding to top
+            doc.text(`[Image could not be loaded]`, x, currentY + 1.5)
             doc.setTextColor(0, 0, 0)
             currentY += 15 // Reduced spacing for placeholder images
             resolve()
@@ -849,18 +864,20 @@ async function addImagesToPdf(
         })
       } else {
         // For other URLs, use a placeholder
-        doc.setFontSize(9)
+        doc.setFontSize(10) // Standardized font size
         doc.setTextColor(100, 100, 100)
-        doc.text(`[Image: ${image.alt || image.src}]`, x, currentY)
+        // Add slight padding to top
+        doc.text(`[Image: ${image.alt || image.src}]`, x, currentY + 1.5)
         doc.setTextColor(0, 0, 0)
         currentY += 15 // Reduced spacing for placeholder images
       }
     } catch (error) {
       console.error(`Failed to add image to PDF: ${image.src}`, error)
       // Add a placeholder for failed images
-      doc.setFontSize(9)
+      doc.setFontSize(10) // Standardized font size
       doc.setTextColor(100, 100, 100)
-      doc.text(`[Image could not be loaded: ${error.message || "Unknown error"}]`, x, currentY)
+      // Add slight padding to top
+      doc.text(`[Image could not be loaded: ${error.message || "Unknown error"}]`, x, currentY + 1.5)
       doc.setTextColor(0, 0, 0)
       currentY += 15 // Reduced spacing for placeholder images
     }
@@ -900,7 +917,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     // Add summary if provided - removed the "Summary:" label
     let y = 30 // More spacing after title
     if (summary) {
-      doc.setFontSize(10) // Slightly smaller font size for summary
+      doc.setFontSize(10) // Standardized font size
 
       // Slightly reduced line spacing for summary text (was 8, now 7)
       const summaryLineHeight = 7
@@ -908,7 +925,8 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
       // Apply increased line spacing by manually positioning each line
       for (let i = 0; i < summaryLines.length; i++) {
-        doc.text(summaryLines[i], 15, y + i * summaryLineHeight)
+        // Add slight padding to top
+        doc.text(summaryLines[i], 15, y + i * summaryLineHeight + 1.5)
       }
 
       // Calculate total height used by summary
@@ -951,14 +969,15 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       const startPage = doc.getCurrentPageInfo().pageNumber
 
       // Draw key point (heading) with increased line spacing
-      doc.setFontSize(11)
+      doc.setFontSize(11) // Keep headings slightly larger
       doc.setFont(undefined, "bold")
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
       // Increase line spacing for headings
       const headingLineHeight = 8 // Slightly decreased from 9
       for (let i = 0; i < headingLines.length; i++) {
-        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight)
+        // Add slight padding to top
+        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
       }
       doc.setFont(undefined, "normal")
 
@@ -977,7 +996,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
 
       // Draw content with improved markdown rendering
-      doc.setFontSize(11)
+      doc.setFontSize(10) // Standardized font size
       const contentEndY = renderMarkdownContent(
         doc,
         section.content,
@@ -1046,8 +1065,8 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Set back to the last page
       doc.setPage(endPage)
 
-      // Update y position for next section with reduced spacing
-      y = imagesEndY + 1 // Reduced spacing between sections
+      // Update y position for next section with further reduced spacing
+      y = imagesEndY + 0.5 // Reduced spacing between sections by half
     }
 
     // Draw horizontal lines at the bottom of each section
@@ -1073,14 +1092,15 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.setPage(pageNum)
 
         // Draw the key point heading on the continuation page with increased line spacing
-        doc.setFontSize(10)
+        doc.setFontSize(11) // Keep headings slightly larger
         doc.setFont(undefined, "bold")
         const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
         // Increase line spacing for headings
         const headingLineHeight = 8 // Slightly decreased from 9
         for (let i = 0; i < headingLines.length; i++) {
-          doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight)
+          // Add slight padding to top
+          doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
         }
         doc.setFont(undefined, "normal")
 
