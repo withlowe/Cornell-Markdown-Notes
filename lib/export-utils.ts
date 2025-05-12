@@ -423,6 +423,10 @@ function renderMarkdownContent(
     if (currentY + lineHeight > pageHeight - margin) {
       doc.addPage()
       currentY = margin
+
+      // Reset text properties after page break to ensure consistency
+      doc.setFontSize(11)
+      doc.setTextColor(0, 0, 0)
     }
 
     // Skip empty lines but add spacing
@@ -582,6 +586,10 @@ function renderMarkdownContent(
       if (currentY + lineHeight > pageHeight - margin) {
         doc.addPage()
         currentY = margin
+
+        // Reset text properties after page break to ensure consistency
+        doc.setFontSize(11)
+        doc.setTextColor(0, 0, 0)
       }
 
       doc.text(textLines[j], x, currentY)
@@ -645,6 +653,10 @@ async function addImagesToPdf(
       if (currentY + maxImageHeight > pageHeight - margin) {
         doc.addPage()
         currentY = margin
+
+        // Reset text properties after page break
+        doc.setFontSize(11)
+        doc.setTextColor(0, 0, 0)
       }
 
       // Skip placeholder images
@@ -731,8 +743,18 @@ async function addImagesToPdf(
                 if (captionY + 8 > pageHeight - margin) {
                   doc.addPage()
                   currentY = margin
+
+                  // Reset text properties
+                  doc.setFontSize(11)
+                  doc.setTextColor(0, 0, 0)
+
                   // Re-add the image on the new page
                   doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
+
+                  // Set caption font properties
+                  doc.setFontSize(8)
+                  doc.setTextColor(100, 100, 100)
+
                   doc.text(image.alt, x, currentY + finalHeight + 3, { align: "left", maxWidth: maxWidth })
                   currentY = currentY + finalHeight + 8 // Reduced spacing after caption
                 } else {
@@ -865,13 +887,18 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Calculate heading height
       const headingHeight = headingLines.length * 7 + 5
 
+      // Create a clipping rectangle for the content area to prevent overflow into other sections
+      // This ensures content stays within its section boundaries
+      const contentStartX = margin + keyPointsWidth + 5
+      const contentStartY = y + 5
+
       // Draw content with improved markdown rendering
       doc.setFontSize(11)
       const contentEndY = renderMarkdownContent(
         doc,
         section.content,
-        margin + keyPointsWidth + 5,
-        y + 5,
+        contentStartX,
+        contentStartY,
         contentWidth - 10,
         pageHeight,
         margin,
@@ -881,7 +908,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       const imagesEndY = await addImagesToPdf(
         doc,
         section.content,
-        margin + keyPointsWidth + 5,
+        contentStartX,
         contentEndY + 3, // Reduced spacing before images
         contentWidth - 10,
         pageHeight,
@@ -920,6 +947,12 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         } else {
           // Middle pages of the section
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+        }
+
+        // Add horizontal lines at top and bottom of each page (except first page)
+        if (pageNum > startPage) {
+          // Top horizontal line on continuation pages
+          doc.line(margin, margin, margin + keyPointsWidth + contentWidth, margin)
         }
       }
 
