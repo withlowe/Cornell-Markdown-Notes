@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label"
 import { TagInput } from "@/components/tag-input"
 import { TableGenerator } from "@/components/table-generator"
 import { ImageInserter } from "@/components/image-inserter"
-import { FlashcardGenerator } from "@/components/flashcard-generator"
 import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
 import { WysimarkEditor } from "@/components/wysimark-editor"
@@ -38,7 +37,6 @@ Here's a simple list of React concepts:
   )
   const [isTableGeneratorOpen, setIsTableGeneratorOpen] = useState(false)
   const [isImageInserterOpen, setIsImageInserterOpen] = useState(false)
-  const [isFlashcardGeneratorOpen, setIsFlashcardGeneratorOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // Check if we're editing an existing document
@@ -138,25 +136,12 @@ Here's a simple list of React concepts:
     }
   }
 
-  const handleGenerateFlashcards = () => {
-    // First save the document if it's not saved yet
-    if (!id) {
-      handleSave()
-    }
-
-    // Open the flashcard generator
-    setIsFlashcardGeneratorOpen(true)
-  }
-
   return (
     <main className="min-h-screen bg-background">
       <div className="container-standard py-8">
         <header className="flex justify-between items-center mb-8">
           <h1 className="text-heading-1">Notes</h1>
           <div className="flex gap-3">
-            <Button size="default" variant="ghost" onClick={() => router.push("/flashcards")}>
-              Flashcards
-            </Button>
             <Button size="default" variant="ghost" onClick={() => router.push("/library")}>
               Library
             </Button>
@@ -257,9 +242,6 @@ Here's a simple list of React concepts:
             <Button size="default" variant="outline" onClick={handleExportPdf}>
               Export PDF
             </Button>
-            <Button size="default" variant="outline" onClick={handleGenerateFlashcards}>
-              Generate Flashcards
-            </Button>
             <Button size="default" onClick={handleSave} disabled={isSaving}>
               {isSaving ? "Saving..." : "Save to Library"}
             </Button>
@@ -277,15 +259,6 @@ Here's a simple list of React concepts:
         isOpen={isImageInserterOpen}
         onClose={() => setIsImageInserterOpen(false)}
         onInsert={handleInsertImage}
-      />
-
-      <FlashcardGenerator
-        isOpen={isFlashcardGeneratorOpen}
-        onClose={() => setIsFlashcardGeneratorOpen(false)}
-        documentId={id}
-        documentTitle={title}
-        documentContent={markdown}
-        documentTags={tags}
       />
     </main>
   )

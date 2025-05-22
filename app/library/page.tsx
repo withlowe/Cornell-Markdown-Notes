@@ -23,6 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+// Import the exportToPdf function
+import { exportToPdf } from "@/lib/export-utils"
+
 export default function LibraryPage() {
   const router = useRouter()
   const [documents, setDocuments] = useState<DocumentData[]>([])
@@ -140,6 +143,23 @@ export default function LibraryPage() {
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
+    }
+  }
+
+  // Add the handleExportPdf function after the handleImportFiles function
+  const handleExportPdf = async () => {
+    if (!activeDocument) {
+      alert("Please select a document to export as PDF.")
+      return
+    }
+
+    try {
+      await exportToPdf(activeDocument.title, activeDocument.summary || "", activeDocument.content)
+      console.log("PDF exported successfully")
+      alert(`Successfully exported "${activeDocument.title}" as PDF`)
+    } catch (error) {
+      console.error("PDF export failed:", error)
+      alert(`PDF export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -432,6 +452,9 @@ export default function LibraryPage() {
               <div className="flex gap-2">
                 <Button size="default" variant="outline" onClick={() => router.push(`/?id=${activeDocument.id}`)}>
                   Edit
+                </Button>
+                <Button size="default" variant="outline" onClick={handleExportPdf}>
+                  Export PDF
                 </Button>
                 <Button size="default" variant="default" onClick={() => handleDelete(activeDocument.id)}>
                   Delete
