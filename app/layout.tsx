@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
 export const metadata: Metadata = {
   title: "Cornell Notes App",
-  description: "A modern note-taking application with Cornell note format and flashcard generation",
+  description: "A modern note-taking application with Cornell note format",
     generator: 'v0.dev'
 }
 

@@ -18,6 +18,14 @@ const nextConfig = {
       ...config.watchOptions,
       ignored: ['**/node_modules/**', '**/app/flashcards/**'],
     };
+    
+    // Add a rule to ignore any flashcard-related files
+    config.module.rules.push({
+      test: /flashcard/,
+      use: 'null-loader',
+      exclude: /node_modules/,
+    });
+    
     return config;
   },
 };
