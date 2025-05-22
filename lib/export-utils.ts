@@ -1180,10 +1180,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.setFont("helvetica", "normal")
       }
 
-      // Add page numbers - minimal styling
-      doc.setFontSize(9)
-      doc.setTextColor(150, 150, 150)
-      doc.text(`${pageNum} / ${totalPages}`, pageWidth - margin - 10, pageHeight - margin)
+      // Removed page numbers
     }
 
     // Generate the PDF as a blob
