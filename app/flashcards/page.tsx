@@ -89,46 +89,58 @@ export default function FlashcardsPage() {
         {activeTab === "all-decks" ? (
           <>
             {filteredDecks.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredDecks.map((deck) => (
-                  <div key={deck.id} className="flashcard-deck">
-                    <div className="flashcard-deck-header">
-                      <h2 className="flashcard-deck-title">{deck.name}</h2>
-                      <div className="flashcard-deck-actions">
-                        <Button size="default" onClick={() => router.push(`/flashcards/study/${deck.id}`)}>
+                  <div
+                    key={deck.id}
+                    className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <div className="p-6">
+                      <h2 className="text-xl font-medium mb-2">{deck.name}</h2>
+                      {deck.description && <p className="text-muted-foreground text-sm mb-4">{deck.description}</p>}
+
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <Badge variant="outline" className="text-xs bg-gray-50">
+                          {deck.cards.length} cards
+                        </Badge>
+                        {deck.cards.some((card) => card.type === "question-answer") && (
+                          <Badge variant="outline" className="text-xs bg-gray-50">
+                            Q&A
+                          </Badge>
+                        )}
+                        {deck.cards.some((card) => card.type === "feynman") && (
+                          <Badge variant="outline" className="text-xs bg-gray-50">
+                            Feynman
+                          </Badge>
+                        )}
+                        {deck.cards.some((card) => card.type === "cloze") && (
+                          <Badge variant="outline" className="text-xs bg-gray-50">
+                            Cloze
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-muted-foreground mb-4">
+                        Created {formatDistanceToNow(new Date(deck.createdAt), { addSuffix: true })}
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button
+                          size="default"
+                          className="flex-1"
+                          onClick={() => router.push(`/flashcards/study/${deck.id}`)}
+                        >
                           Study
                         </Button>
-                        <Button size="default" variant="outline" onClick={() => handleDeleteDeck(deck.id)}>
+                        <Button
+                          size="default"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => handleDeleteDeck(deck.id)}
+                        >
                           Delete
                         </Button>
                       </div>
-                    </div>
-
-                    {deck.description && <p className="flashcard-deck-description">{deck.description}</p>}
-
-                    <div className="flashcard-deck-meta">
-                      <Badge variant="outline" className="text-xs bg-gray-50">
-                        {deck.cards.length} cards
-                      </Badge>
-                      {deck.cards.some((card) => card.type === "question-answer") && (
-                        <Badge variant="outline" className="text-xs bg-gray-50">
-                          Q&A
-                        </Badge>
-                      )}
-                      {deck.cards.some((card) => card.type === "feynman") && (
-                        <Badge variant="outline" className="text-xs bg-gray-50">
-                          Feynman
-                        </Badge>
-                      )}
-                      {deck.cards.some((card) => card.type === "cloze") && (
-                        <Badge variant="outline" className="text-xs bg-gray-50">
-                          Cloze
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="flashcard-deck-footer">
-                      Created {formatDistanceToNow(new Date(deck.createdAt), { addSuffix: true })}
                     </div>
                   </div>
                 ))}

@@ -984,7 +984,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
     const sections = parseMarkdown(processedMarkdown)
 
-    // Create a new PDF document
+    // Create a new PDF document with clean, minimal styling
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -998,45 +998,43 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     const keyPointsWidth = 45
     const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
-    // Set title - bigger and bold
-    doc.setFontSize(22)
-    doc.setFont(undefined, "bold")
+    // Set clean, modern font
+    doc.setFont("helvetica", "normal")
+
+    // Set title - clean and minimal
+    doc.setFontSize(24)
+    doc.setFont("helvetica", "bold")
     doc.text(title, 15, 20)
-    doc.setFont(undefined, "normal")
+    doc.setFont("helvetica", "normal")
 
-    // Add summary if provided - removed the "Summary:" label
-    let y = 30 // More spacing after title
+    // Add summary if provided - clean styling
+    let y = 30
     if (summary) {
-      doc.setFontSize(11) // Standardized font size for all text
-
-      // Reduced line spacing for summary text
-      const summaryLineHeight = 6.5 // Reduced line height for summary text
+      doc.setFontSize(11)
+      const summaryLineHeight = 6
       const summaryLines = doc.splitTextToSize(summary, 180)
 
-      // Apply increased line spacing by manually positioning each line
+      // Apply clean line spacing
       for (let i = 0; i < summaryLines.length; i++) {
-        // Add slight padding to top
         doc.text(summaryLines[i], 15, y + i * summaryLineHeight + 1.5)
       }
 
-      // Calculate total height used by summary
-      y += summaryLines.length * summaryLineHeight + 4 // Further reduced spacing after summary
+      y += summaryLines.length * summaryLineHeight + 4
     } else {
-      y = 35 // Reduced spacing if no summary
+      y = 35
     }
 
-    // Draw a single light horizontal line under where the header would be
-    doc.setDrawColor(220, 220, 220) // Very light gray
+    // Draw a light horizontal line under the header - minimal styling
+    doc.setDrawColor(230, 230, 230)
     doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
 
-    // Draw content with minimal styling
-    y += 8 // Reduced spacing between header and content
+    y += 8
 
     // Track section boundaries for proper horizontal line alignment
     const sectionBoundaries = []
 
     // Track pages that contain continuation of sections
-    const continuationPages = new Map<number, number>() // page number -> section index
+    const continuationPages = new Map<number, number>()
 
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
@@ -1050,32 +1048,26 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       if (y + 20 > pageHeight - margin) {
         doc.addPage()
         y = margin
-
-        // No horizontal line at the top of the page
-        y += 8 // Reduced spacing on new pages
+        y += 8
       }
 
       const startY = y
       const startPage = doc.getCurrentPageInfo().pageNumber
 
-      // Draw key point (heading) with increased line spacing
-      doc.setFontSize(11) // Standardized font size for all text
-      doc.setFont(undefined, "bold")
+      // Draw key point (heading) with clean styling
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "bold")
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-      // Reduced line spacing for headings
-      const headingLineHeight = 6.5 // Reduced line height for headings
+      const headingLineHeight = 6
       for (let i = 0; i < headingLines.length; i++) {
-        // Add slight padding to top
         doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
       }
-      doc.setFont(undefined, "normal")
+      doc.setFont("helvetica", "normal")
 
-      // Calculate heading height with increased spacing
       const headingHeight = headingLines.length * headingLineHeight + 5
 
-      // Create a clipping rectangle for the content area to prevent overflow into other sections
-      // This ensures content stays within its section boundaries
+      // Content area
       const contentStartX = margin + keyPointsWidth + 5
       const contentStartY = y + 5
 
@@ -1086,7 +1078,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
 
       // Draw content with improved markdown rendering
-      doc.setFontSize(11) // Standardized font size for all text
+      doc.setFontSize(11)
       const contentEndY = renderMarkdownContent(
         doc,
         section.content,
@@ -1105,7 +1097,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc,
         section.content,
         contentStartX,
-        contentEndY + 3, // Reduced spacing before images
+        contentEndY + 3,
         contentWidth - 10,
         pageHeight,
         margin,
@@ -1131,23 +1123,19 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         }
       }
 
-      // Draw section with very light borders
-      doc.setDrawColor(230, 230, 230) // Extra light gray for borders
+      // Draw section with very light borders - minimal styling
+      doc.setDrawColor(240, 240, 240)
 
       // Draw vertical divider between key points and notes
-      // We need to draw this on each page that contains this section
       for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
         doc.setPage(pageNum)
 
         if (pageNum === startPage) {
-          // First page of the section
           const endY = pageNum === endPage ? imagesEndY : pageHeight - margin
           doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, endY)
         } else if (pageNum === endPage) {
-          // Last page of the section
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, imagesEndY)
         } else {
-          // Middle pages of the section
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
         }
       }
@@ -1155,24 +1143,23 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Set back to the last page
       doc.setPage(endPage)
 
-      // Update y position for next section with further reduced spacing
-      y = imagesEndY + 0.5 // Reduced spacing between sections by half
+      // Update y position for next section
+      y = imagesEndY + 0.5
     }
 
-    // Draw horizontal lines at the bottom of each section
-    // This is done after all sections are processed to ensure proper alignment
+    // Draw horizontal lines at the bottom of each section - minimal styling
     for (let i = 0; i < sectionBoundaries.length; i++) {
       const section = sectionBoundaries[i]
 
       // Only draw bottom line if not the last section
       if (i < sectionBoundaries.length - 1) {
         doc.setPage(section.endPage)
-        doc.setDrawColor(230, 230, 230) // Extra light gray for borders
+        doc.setDrawColor(240, 240, 240)
         doc.line(margin, section.endY, margin + keyPointsWidth + contentWidth, section.endY)
       }
     }
 
-    // Handle continuation pages - draw the key point heading on continuation pages
+    // Handle continuation pages - clean styling
     const totalPages = doc.getNumberOfPages()
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       if (continuationPages.has(pageNum)) {
@@ -1181,21 +1168,22 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
         doc.setPage(pageNum)
 
-        // Draw the key point heading on the continuation page with increased line spacing
-        doc.setFontSize(11) // Standardized font size for all text
-        doc.setFont(undefined, "bold")
+        // Draw the key point heading on the continuation page
+        doc.setFontSize(11)
+        doc.setFont("helvetica", "bold")
         const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-        // Reduced line spacing for headings
-        const headingLineHeight = 6.5 // Reduced line height for headings
+        const headingLineHeight = 6
         for (let i = 0; i < headingLines.length; i++) {
-          // Add slight padding to top
           doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
         }
-        doc.setFont(undefined, "normal")
-
-        // No horizontal line at the top of continuation pages
+        doc.setFont("helvetica", "normal")
       }
+
+      // Add page numbers - minimal styling
+      doc.setFontSize(9)
+      doc.setTextColor(150, 150, 150)
+      doc.text(`${pageNum} / ${totalPages}`, pageWidth - margin - 10, pageHeight - margin)
     }
 
     // Generate the PDF as a blob

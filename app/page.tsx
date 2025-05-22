@@ -101,9 +101,41 @@ Here's a simple list of React concepts:
     insertAtCursor(imageMarkdown)
   }
 
+  // Replace the insertAtCursor function with this improved version that inserts at cursor position
   const insertAtCursor = (content: string) => {
-    // With a simple textarea, we can only append content to the end
-    setMarkdown(markdown + "\n\n" + content)
+    // Get the textarea element
+    const textarea = document.querySelector("textarea")
+
+    if (textarea) {
+      // Get cursor position
+      const startPos = textarea.selectionStart
+      const endPos = textarea.selectionEnd
+
+      // Get text before and after cursor
+      const textBefore = markdown.substring(0, startPos)
+      const textAfter = markdown.substring(endPos)
+
+      // Insert content at cursor position with proper spacing
+      const newText =
+        textBefore +
+        (textBefore.endsWith("\n\n") ? "" : textBefore.endsWith("\n") ? "\n" : "\n\n") +
+        content +
+        (textAfter.startsWith("\n") ? "" : "\n\n") +
+        textAfter
+
+      setMarkdown(newText)
+
+      // Set cursor position after inserted content
+      setTimeout(() => {
+        const newCursorPos =
+          startPos + content.length + (textBefore.endsWith("\n\n") ? 0 : textBefore.endsWith("\n") ? 1 : 2)
+        textarea.focus()
+        textarea.setSelectionRange(newCursorPos, newCursorPos)
+      }, 0)
+    } else {
+      // Fallback to appending if textarea not found
+      setMarkdown(markdown + "\n\n" + content)
+    }
   }
 
   const handleGenerateFlashcards = () => {
@@ -211,10 +243,10 @@ Here's a simple list of React concepts:
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm card-standard h-[600px] flex flex-col">
+            <Card className="border shadow-sm card-standard min-h-[600px] flex flex-col">
               <CardContent className="p-6 flex-1 flex flex-col">
                 <h2 className="text-heading-3 mb-4">Preview</h2>
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 overflow-y-auto pr-2">
                   <CornellNotes markdown={markdown} />
                 </div>
               </CardContent>

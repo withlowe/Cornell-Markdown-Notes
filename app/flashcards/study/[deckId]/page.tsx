@@ -11,6 +11,41 @@ import {
   saveFlashcardDeck,
   type FlashcardDeck,
 } from "@/lib/flashcard-utils"
+import { marked } from "marked"
+
+// Function to render markdown to HTML with proper image handling
+function renderMarkdownToHtml(markdown: string): string {
+  try {
+    // Configure marked to handle images properly
+    const renderer = new marked.Renderer()
+
+    // Original renderer for images
+    const originalImageRenderer = renderer.image.bind(renderer)
+
+    // Custom image renderer to handle cornell-image:// URLs
+    renderer.image = (href, title, text) => {
+      // Check if it's a cornell-image:// URL
+      if (href && href.startsWith("cornell-image://")) {
+        // For cornell-image URLs, we'll add a data-image-id attribute
+        // that will be processed by client-side code
+        const imageId = href.replace("cornell-image://", "")
+        return `<img src="/system-error-screen.png" alt="${text || "Image"}" 
+                data-image-id="${imageId}" class="cornell-image max-w-full h-auto rounded-md my-2" />`
+      }
+
+      // For regular images, use the original renderer
+      return originalImageRenderer(href, title, text)
+    }
+
+    // Set the custom renderer
+    marked.setOptions({ renderer })
+
+    return marked(markdown)
+  } catch (error) {
+    console.error("Error rendering markdown:", error)
+    return markdown
+  }
+}
 
 export default function StudyDeckPage({ params }: { params: { deckId: string } }) {
   const router = useRouter()
@@ -85,6 +120,37 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
   const currentCard = deck?.cards[currentCardIndex]
   const progress = deck ? ((currentCardIndex + 1) / deck.cards.length) * 100 : 0
 
+  useEffect(() => {
+    // Function to load images from storage
+    const loadImages = async () => {
+      // Find all cornell-image elements
+      const cornellImages = document.querySelectorAll(".cornell-image[data-image-id]")
+
+      for (const img of Array.from(cornellImages)) {
+        const imageId = img.getAttribute("data-image-id")
+        if (imageId) {
+          try {
+            // Import the getImage function
+            const { getImage } = await import("@/lib/image-storage")
+            const imageData = await getImage(imageId)
+
+            if (imageData) {
+              // Set the image source to the loaded data
+              ;(img as HTMLImageElement).src = imageData
+            }
+          } catch (error) {
+            console.error(`Error loading image ${imageId}:`, error)
+          }
+        }
+      }
+    }
+
+    // Only run if the card is flipped (to avoid unnecessary loading)
+    if (isFlipped) {
+      loadImages()
+    }
+  }, [isFlipped, currentCardIndex])
+
   if (!deck || !currentCard) {
     return (
       <div className="container-standard p-6 flex items-center justify-center min-h-screen">
@@ -123,7 +189,13 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
           <div className={`flashcard-inner ${isFlipped ? "is-flipped" : ""}`}>
             <div className="flashcard-front">
               <div className="flashcard-content">
-                <div className="flashcard-quote">"{currentCard.front}"</div>
+                <div className="flashcard-markdown">
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdownToHtml(currentCard.front),
+                    }}
+                  />
+                </div>
                 <div className="flashcard-attribution">
                   {currentCard.type === "question-answer"
                     ? "Question"
@@ -137,7 +209,13 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
 
             <div className="flashcard-back">
               <div className="flashcard-content">
-                <div className="flashcard-quote">"{currentCard.back}"</div>
+                <div className="flashcard-markdown">
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdownToHtml(currentCard.back),
+                    }}
+                  />
+                </div>
                 <div className="flashcard-attribution">Answer</div>
               </div>
             </div>

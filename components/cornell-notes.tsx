@@ -145,7 +145,7 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
               />
 
               {/* Then render markdown content with ReactMarkdown */}
-              <div className="markdown-content">
+              <div className="markdown-content overflow-x-auto">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
