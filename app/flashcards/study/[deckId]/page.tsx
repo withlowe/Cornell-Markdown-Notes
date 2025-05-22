@@ -12,6 +12,7 @@ import {
   type FlashcardDeck,
 } from "@/lib/flashcard-utils"
 import { marked } from "marked"
+import { getDocument } from "@/lib/storage-utils"
 
 // Function to render markdown to HTML with proper image handling
 function renderMarkdownToHtml(markdown: string): string {
@@ -50,6 +51,7 @@ function renderMarkdownToHtml(markdown: string): string {
 export default function StudyDeckPage({ params }: { params: { deckId: string } }) {
   const router = useRouter()
   const [deck, setDeck] = useState<FlashcardDeck | null>(null)
+  const [sourceDocTitle, setSourceDocTitle] = useState<string | null>(null)
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [studySession, setStudySession] = useState({
@@ -66,6 +68,14 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
         ...loadedDeck,
         cards: shuffledCards,
       })
+
+      // Load source document title if available
+      if (loadedDeck.sourceDocumentId) {
+        const sourceDoc = getDocument(loadedDeck.sourceDocumentId)
+        if (sourceDoc) {
+          setSourceDocTitle(sourceDoc.title)
+        }
+      }
     } else {
       // Deck not found, redirect to flashcards page
       router.push("/flashcards")
@@ -181,7 +191,7 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
         </Button>
       </div>
 
-      <Progress value={progress} className="mb-8 h-1 bg-gray-100" />
+      <Progress value={progress} className="mb-8 h-1 bg-gray-100 dark:bg-gray-700" />
 
       <div className="flex-1 flex flex-col items-center justify-center mb-8">
         {/* Flashcard with flip animation */}
@@ -189,6 +199,9 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
           <div className={`flashcard-inner ${isFlipped ? "is-flipped" : ""}`}>
             <div className="flashcard-front">
               <div className="flashcard-content">
+                {sourceDocTitle && (
+                  <div className="flashcard-source text-xs text-muted-foreground mb-2">From: {sourceDocTitle}</div>
+                )}
                 <div className="flashcard-markdown">
                   <div
                     dangerouslySetInnerHTML={{
@@ -209,6 +222,9 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
 
             <div className="flashcard-back">
               <div className="flashcard-content">
+                {sourceDocTitle && (
+                  <div className="flashcard-source text-xs text-muted-foreground mb-2">From: {sourceDocTitle}</div>
+                )}
                 <div className="flashcard-markdown">
                   <div
                     dangerouslySetInnerHTML={{

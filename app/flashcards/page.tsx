@@ -48,6 +48,19 @@ export default function FlashcardsPage() {
       deck.description?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
+  // Group due cards by deck
+  const dueCardsByDeck = dueCards.reduce(
+    (acc, card) => {
+      const deckId = (card as any).deckId
+      if (!acc[deckId]) {
+        acc[deckId] = []
+      }
+      acc[deckId].push(card)
+      return acc
+    },
+    {} as Record<string, Flashcard[]>,
+  )
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container-standard py-8">
@@ -93,28 +106,28 @@ export default function FlashcardsPage() {
                 {filteredDecks.map((deck) => (
                   <div
                     key={deck.id}
-                    className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                    className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow dark:border-gray-700 dark:bg-gray-800"
                   >
                     <div className="p-6">
                       <h2 className="text-xl font-medium mb-2">{deck.name}</h2>
                       {deck.description && <p className="text-muted-foreground text-sm mb-4">{deck.description}</p>}
 
                       <div className="flex flex-wrap gap-2 mb-4">
-                        <Badge variant="outline" className="text-xs bg-gray-50">
+                        <Badge variant="outline" className="text-xs bg-gray-50 dark:bg-gray-700">
                           {deck.cards.length} cards
                         </Badge>
                         {deck.cards.some((card) => card.type === "question-answer") && (
-                          <Badge variant="outline" className="text-xs bg-gray-50">
+                          <Badge variant="outline" className="text-xs bg-gray-50 dark:bg-gray-700">
                             Q&A
                           </Badge>
                         )}
                         {deck.cards.some((card) => card.type === "feynman") && (
-                          <Badge variant="outline" className="text-xs bg-gray-50">
+                          <Badge variant="outline" className="text-xs bg-gray-50 dark:bg-gray-700">
                             Feynman
                           </Badge>
                         )}
                         {deck.cards.some((card) => card.type === "cloze") && (
-                          <Badge variant="outline" className="text-xs bg-gray-50">
+                          <Badge variant="outline" className="text-xs bg-gray-50 dark:bg-gray-700">
                             Cloze
                           </Badge>
                         )}
@@ -146,7 +159,7 @@ export default function FlashcardsPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 border border-gray-200 rounded-md">
+              <div className="text-center py-12 border border-gray-200 rounded-md dark:border-gray-700">
                 <h3 className="text-heading-3 mb-2">No flashcard decks found</h3>
                 <p className="text-body-sm mb-6 max-w-md mx-auto">
                   {searchTerm ? "Try adjusting your search term" : "Create flashcards from your notes to get started"}
@@ -161,35 +174,63 @@ export default function FlashcardsPage() {
           <>
             {dueCards.length > 0 ? (
               <div className="space-y-8">
-                <div className="border border-gray-200 p-6 rounded-md">
+                <div className="border border-gray-200 p-6 rounded-md dark:border-gray-700 dark:bg-gray-800">
                   <h3 className="text-heading-3 mb-3">Cards Due for Review</h3>
                   <p className="text-body-sm mb-6 max-w-2xl">
-                    You have {dueCards.length} flashcards due for review across{" "}
-                    {new Set(dueCards.map((card) => (card as any).deckId)).size} decks.
+                    You have {dueCards.length} flashcards due for review across {Object.keys(dueCardsByDeck).length}{" "}
+                    decks.
                   </p>
                   <Button size="default" onClick={() => router.push("/flashcards/review")}>
                     Start Review Session
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  {Array.from(new Set(dueCards.map((card) => (card as any).deckId))).map((deckId) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {Object.entries(dueCardsByDeck).map(([deckId, cards]) => {
                     const deck = decks.find((d) => d.id === deckId)
-                    const deckDueCards = dueCards.filter((card) => (card as any).deckId === deckId)
-
                     if (!deck) return null
 
                     return (
-                      <div key={deckId} className="flashcard-deck">
-                        <div className="flashcard-deck-header">
-                          <h2 className="flashcard-deck-title">{deck.name}</h2>
-                          <Button size="default" onClick={() => router.push(`/flashcards/review?deckId=${deckId}`)}>
-                            Review
-                          </Button>
-                        </div>
+                      <div
+                        key={deckId}
+                        className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow dark:border-gray-700 dark:bg-gray-800"
+                      >
+                        <div className="p-6">
+                          <h2 className="text-xl font-medium mb-2">{deck.name}</h2>
+                          {deck.description && <p className="text-muted-foreground text-sm mb-4">{deck.description}</p>}
 
-                        <div className="flashcard-deck-meta">
-                          <Badge className="text-xs bg-gray-50 text-gray-700">{deckDueCards.length} due cards</Badge>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            <Badge variant="secondary" className="text-xs">
+                              {cards.length} due cards
+                            </Badge>
+                            {cards.some((card) => card.type === "question-answer") && (
+                              <Badge variant="outline" className="text-xs bg-gray-50 dark:bg-gray-700">
+                                Q&A
+                              </Badge>
+                            )}
+                            {cards.some((card) => card.type === "feynman") && (
+                              <Badge variant="outline" className="text-xs bg-gray-50 dark:bg-gray-700">
+                                Feynman
+                              </Badge>
+                            )}
+                            {cards.some((card) => card.type === "cloze") && (
+                              <Badge variant="outline" className="text-xs bg-gray-50 dark:bg-gray-700">
+                                Cloze
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="text-xs text-muted-foreground mb-4">
+                            Last updated {formatDistanceToNow(new Date(deck.updatedAt), { addSuffix: true })}
+                          </div>
+
+                          <Button
+                            size="default"
+                            className="w-full"
+                            onClick={() => router.push(`/flashcards/review?deckId=${deckId}`)}
+                          >
+                            Review Cards
+                          </Button>
                         </div>
                       </div>
                     )
@@ -197,7 +238,7 @@ export default function FlashcardsPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-12 border border-gray-200 rounded-md">
+              <div className="text-center py-12 border border-gray-200 rounded-md dark:border-gray-700">
                 <h3 className="text-heading-3 mb-2">No cards due for review</h3>
                 <p className="text-body-sm mb-6 max-w-md mx-auto">
                   You're all caught up! Check back later for more cards to review.

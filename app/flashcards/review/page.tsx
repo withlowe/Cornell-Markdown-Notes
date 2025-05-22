@@ -15,6 +15,7 @@ import {
 } from "@/lib/flashcard-utils"
 import { marked } from "marked"
 import { getImage } from "@/lib/image-storage"
+import { getDocument } from "@/lib/storage-utils"
 
 // Function to render markdown to HTML with proper image handling
 function renderMarkdownToHtml(markdown: string): string {
@@ -57,6 +58,7 @@ export default function ReviewPage() {
 
   const [dueCards, setDueCards] = useState<Flashcard[]>([])
   const [decks, setDecks] = useState<Record<string, FlashcardDeck>>({})
+  const [sourceDocTitles, setSourceDocTitles] = useState<Record<string, string>>({})
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [reviewSession, setReviewSession] = useState({
@@ -82,16 +84,28 @@ export default function ReviewPage() {
     const deckMap: Record<string, FlashcardDeck> = {}
     const deckIds = new Set(due.map((card) => (card as any).deckId))
 
+    // Track source document titles
+    const sourceTitles: Record<string, string> = {}
+
     deckIds.forEach((id) => {
       if (id) {
         const deck = getFlashcardDeck(id)
         if (deck) {
           deckMap[id] = deck
+
+          // Load source document title if available
+          if (deck.sourceDocumentId) {
+            const sourceDoc = getDocument(deck.sourceDocumentId)
+            if (sourceDoc) {
+              sourceTitles[id] = sourceDoc.title
+            }
+          }
         }
       }
     })
 
     setDecks(deckMap)
+    setSourceDocTitles(sourceTitles)
   }, [deckId, router])
 
   // Add this after your existing useEffect
@@ -186,7 +200,9 @@ export default function ReviewPage() {
 
   const currentCard = dueCards[currentCardIndex]
   const progress = dueCards.length > 0 ? ((currentCardIndex + 1) / dueCards.length) * 100 : 0
-  const currentDeckName = currentCard ? decks[(currentCard as any).deckId]?.name : ""
+  const currentDeckId = currentCard ? (currentCard as any).deckId : null
+  const currentDeckName = currentDeckId ? decks[currentDeckId]?.name : ""
+  const sourceDocTitle = currentDeckId ? sourceDocTitles[currentDeckId] : null
 
   if (dueCards.length === 0 || !currentCard) {
     return (
@@ -219,7 +235,7 @@ export default function ReviewPage() {
         </Button>
       </div>
 
-      <Progress value={progress} className="mb-8 h-1 bg-gray-100" />
+      <Progress value={progress} className="mb-8 h-1 bg-gray-100 dark:bg-gray-700" />
 
       <div className="flex-1 flex flex-col items-center justify-center mb-8">
         {/* Flashcard with flip animation */}
@@ -227,6 +243,9 @@ export default function ReviewPage() {
           <div className={`flashcard-inner ${isFlipped ? "is-flipped" : ""}`}>
             <div className="flashcard-front">
               <div className="flashcard-content">
+                {sourceDocTitle && (
+                  <div className="flashcard-source text-xs text-muted-foreground mb-2">From: {sourceDocTitle}</div>
+                )}
                 <div className="flashcard-markdown">
                   <div
                     dangerouslySetInnerHTML={{
@@ -247,6 +266,9 @@ export default function ReviewPage() {
 
             <div className="flashcard-back">
               <div className="flashcard-content">
+                {sourceDocTitle && (
+                  <div className="flashcard-source text-xs text-muted-foreground mb-2">From: {sourceDocTitle}</div>
+                )}
                 <div className="flashcard-markdown">
                   <div
                     dangerouslySetInnerHTML={{
