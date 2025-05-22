@@ -462,12 +462,12 @@ export default function LibraryPage() {
               </div>
             </div>
 
-            {/* Summary section */}
+            {/* Summary section - Updated text size to match markdown */}
             {activeDocument.summary && (
               <Card className="mb-6 card-standard">
                 <CardContent className="p-4">
                   <h2 className="text-base font-medium mb-2">Summary</h2>
-                  <p className="text-foreground text-sm">{activeDocument.summary}</p>
+                  <p className="text-foreground text-base leading-relaxed">{activeDocument.summary}</p>
                 </CardContent>
               </Card>
             )}

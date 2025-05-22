@@ -6,6 +6,223 @@ interface Section {
   content: string
 }
 
+// Export the main function that will be used in other files
+export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
+  try {
+    // First, process the markdown to load images from storage
+    const processedMarkdown = await processContentForExport(markdown)
+
+    const sections = parseMarkdown(processedMarkdown)
+
+    // Create a new PDF document with clean, minimal styling
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    })
+
+    // Get page dimensions
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const margin = 15
+    const keyPointsWidth = 45
+    const contentWidth = pageWidth - margin - keyPointsWidth - margin
+
+    // Set clean, modern font
+    doc.setFont("helvetica", "normal")
+
+    // Set title - clean and minimal
+    doc.setFontSize(24)
+    doc.setFont("helvetica", "bold")
+    doc.text(title, 15, 20)
+    doc.setFont("helvetica", "normal")
+
+    // Add summary if provided - clean styling
+    let y = 30
+    if (summary) {
+      doc.setFontSize(11)
+      const summaryLineHeight = 6
+      const summaryLines = doc.splitTextToSize(summary, 180)
+
+      // Apply clean line spacing
+      for (let i = 0; i < summaryLines.length; i++) {
+        doc.text(summaryLines[i], 15, y + i * summaryLineHeight + 1.5)
+      }
+
+      y += summaryLines.length * summaryLineHeight + 4
+    } else {
+      y = 35
+    }
+
+    // Draw a light horizontal line under the header - minimal styling
+    doc.setDrawColor(230, 230, 230)
+    doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
+
+    y += 8
+
+    // Track section boundaries for proper horizontal line alignment
+    const sectionBoundaries = []
+
+    // Track pages that contain continuation of sections
+    const continuationPages = new Map<number, number>()
+
+    for (let index = 0; index < sections.length; index++) {
+      const section = sections[index]
+
+      // Skip sections with empty content
+      if (!section.content.trim()) {
+        continue
+      }
+
+      // Check if we need a new page
+      if (y + 20 > pageHeight - margin) {
+        doc.addPage()
+        y = margin
+        y += 8
+      }
+
+      const startY = y
+      const startPage = doc.getCurrentPageInfo().pageNumber
+
+      // Draw key point (heading) with semibold styling
+      doc.setFontSize(11)
+      // Use bold for semibold effect since jsPDF doesn't have semibold
+      doc.setFont("helvetica", "bold")
+      const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
+
+      const headingLineHeight = 6
+      for (let i = 0; i < headingLines.length; i++) {
+        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
+      }
+      doc.setFont("helvetica", "normal")
+
+      const headingHeight = headingLines.length * headingLineHeight + 5
+
+      // Content area
+      const contentStartX = margin + keyPointsWidth + 5
+      const contentStartY = y + 5
+
+      // Pass section info to the rendering functions
+      const sectionInfo = {
+        currentSection: index,
+        totalSections: sections.length,
+      }
+
+      // Draw content with improved markdown rendering
+      doc.setFontSize(11)
+      const contentEndY = renderMarkdownContent(
+        doc,
+        section.content,
+        contentStartX,
+        contentStartY,
+        contentWidth - 10,
+        pageHeight,
+        margin,
+        keyPointsWidth,
+        pageWidth - margin * 2,
+        sectionInfo,
+      )
+
+      // Add images after the text content
+      const imagesEndY = await addImagesToPdf(
+        doc,
+        section.content,
+        contentStartX,
+        contentEndY + 3,
+        contentWidth - 10,
+        pageHeight,
+        margin,
+        keyPointsWidth,
+        pageWidth - margin * 2,
+        sectionInfo,
+      )
+
+      // Store section boundary information for proper line drawing
+      const endPage = doc.getCurrentPageInfo().pageNumber
+      sectionBoundaries.push({
+        index,
+        startY,
+        startPage,
+        endY: imagesEndY,
+        endPage,
+      })
+
+      // Track all pages that contain this section
+      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+        if (pageNum > startPage) {
+          continuationPages.set(pageNum, index)
+        }
+      }
+
+      // Draw section with very light borders - minimal styling
+      doc.setDrawColor(240, 240, 240)
+
+      // Draw vertical divider between key points and notes
+      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+        doc.setPage(pageNum)
+
+        if (pageNum === startPage) {
+          const endY = pageNum === endPage ? imagesEndY : pageHeight - margin
+          doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, endY)
+        } else if (pageNum === endPage) {
+          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, imagesEndY)
+        } else {
+          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+        }
+      }
+
+      // Set back to the last page
+      doc.setPage(endPage)
+
+      // Update y position for next section
+      y = imagesEndY + 0.5
+    }
+
+    // Draw horizontal lines at the bottom of each section - minimal styling
+    for (let i = 0; i < sectionBoundaries.length; i++) {
+      const section = sectionBoundaries[i]
+
+      // Only draw bottom line if not the last section
+      if (i < sectionBoundaries.length - 1) {
+        doc.setPage(section.endPage)
+        doc.setDrawColor(240, 240, 240)
+        doc.line(margin, section.endY, margin + keyPointsWidth + contentWidth, section.endY)
+      }
+    }
+
+    // Handle continuation pages - clean styling
+    const totalPages = doc.getNumberOfPages()
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      if (continuationPages.has(pageNum)) {
+        const sectionIndex = continuationPages.get(pageNum)!
+        const section = sections[sectionIndex]
+
+        doc.setPage(pageNum)
+
+        // Draw the key point heading on the continuation page (semibold)
+        doc.setFontSize(11)
+        doc.setFont("helvetica", "bold")
+        const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
+
+        const headingLineHeight = 6
+        for (let i = 0; i < headingLines.length; i++) {
+          doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
+        }
+        doc.setFont("helvetica", "normal")
+      }
+    }
+
+    // Generate the PDF as a blob
+    const pdfBlob = doc.output("blob")
+
+    // Download the PDF
+    downloadBlob(pdfBlob, `${title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+  } catch (error) {
+    console.error("Error generating PDF:", error)
+    throw new Error(`Failed to generate PDF: ${error instanceof Error ? error.message : "Unknown error"}`)
+  }
+}
+
 // Helper function to download a blob
 function downloadBlob(blob: Blob, filename: string) {
   // Create a URL for the blob
@@ -173,7 +390,7 @@ function renderTable(
 
   // Draw table header
   doc.setFontSize(11) // Standardized font size for all text
-  doc.setFont(undefined, "bold")
+  doc.setFont("helvetica", "bold")
 
   let currentX = x
   columns.forEach((col, colIndex) => {
@@ -208,11 +425,11 @@ function renderTable(
     currentX += columnWidth
   })
 
-  doc.setFont(undefined, "normal")
+  doc.setFont("helvetica", "normal")
   currentY += rowHeight
 
   // Draw header separator - minimal line
-  doc.setDrawColor(150, 150, 150)
+  doc.setDrawColor(200, 200, 200)
   doc.line(x, currentY, x + totalWidth, currentY)
 
   // Draw content rows
@@ -226,7 +443,7 @@ function renderTable(
 
       // Redraw header on new page
       doc.setFontSize(11) // Standardized font size for all text
-      doc.setFont(undefined, "bold")
+      doc.setFont("helvetica", "bold")
 
       currentX = x
       columns.forEach((col, colIndex) => {
@@ -261,11 +478,11 @@ function renderTable(
         currentX += columnWidth
       })
 
-      doc.setFont(undefined, "normal")
+      doc.setFont("helvetica", "normal")
       currentY += rowHeight
 
       // Redraw header separator - minimal line
-      doc.setDrawColor(150, 150, 150)
+      doc.setDrawColor(200, 200, 200)
       doc.line(x, currentY, x + totalWidth, currentY)
     }
 
@@ -614,7 +831,7 @@ function renderMarkdownContent(
 
       const originalSize = doc.getFontSize()
       doc.setFontSize(12 - (level - 2)) // Size based on heading level
-      doc.setFont(undefined, "bold")
+      doc.setFont("helvetica", "bold")
 
       const textLines = doc.splitTextToSize(cleanMarkdown(headingText), maxWidth)
 
@@ -627,7 +844,7 @@ function renderMarkdownContent(
       // Add slight padding to top
       doc.text(textLines, x, currentY + 1.5)
 
-      doc.setFont(undefined, "normal")
+      doc.setFont("helvetica", "normal")
       doc.setFontSize(originalSize)
 
       currentY += textLines.length * lineHeight + 1 // Reduced spacing after headings
@@ -907,289 +1124,133 @@ async function addImagesToPdf(
 
                   // Re-add the image on the new page
                   doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
-
-                  // Set caption font properties
-                  doc.setFontSize(11) // Standardized font size for all text
-                  doc.setTextColor(100, 100, 100)
-
-                  // Add slight padding to top
-                  doc.text(image.alt, x, currentY + finalHeight + 3 + 1.5, { align: "left", maxWidth: maxWidth })
-                  currentY = currentY + finalHeight + 8 // Reduced spacing after caption
-                } else {
-                  // Add slight padding to top
-                  doc.text(image.alt, x, captionY + 1.5, { align: "left", maxWidth: maxWidth })
-                  currentY = captionY + 8 // Reduced spacing after caption
                 }
-              } else {
-                currentY += finalHeight + imageMargin
+
+                // Set caption font properties
+                doc.setFontSize(11) // Standardized font size for all text
+                doc.setTextColor(100, 100, 100)
+
+                // Draw the caption
+                const captionLines = doc.splitTextToSize(image.alt, maxWidth)
+                captionLines.forEach((captionLine) => {
+                  doc.text(captionLine, x, currentY + 1.5)
+                  currentY += lineHeight
+                })
               }
+
+              // Reset text color
+              doc.setTextColor(0, 0, 0)
+
+              // Move to the next position
+              currentY += finalHeight + imageMargin
             } catch (error) {
               console.error("Error adding image to PDF:", error)
-              // Use a placeholder if adding fails
-              doc.setFontSize(11) // Standardized font size for all text
-              doc.setTextColor(100, 100, 100)
-              // Add slight padding to top
-              doc.text(`[Image could not be added to PDF: ${error.message || "Unknown error"}]`, x, currentY + 1.5)
-              doc.setTextColor(0, 0, 0)
-              currentY += 15 // Reduced spacing for placeholder images
             }
+
             resolve()
           }
-
           img.onerror = () => {
-            console.error("Error loading image")
-            // Use a placeholder if loading fails
-            doc.setFontSize(11) // Standardized font size for all text
-            doc.setTextColor(100, 100, 100)
-            // Add slight padding to top
-            doc.text(`[Image could not be loaded]`, x, currentY + 1.5)
-            doc.setTextColor(0, 0, 0)
-            currentY += 15 // Reduced spacing for placeholder images
+            console.error("Error loading image:", image.src)
             resolve()
           }
-
-          // Set crossOrigin to anonymous to avoid CORS issues
-          img.crossOrigin = "anonymous"
           img.src = image.src
         })
       } else {
-        // For other URLs, use a placeholder
-        doc.setFontSize(11) // Standardized font size for all text
-        doc.setTextColor(100, 100, 100)
-        // Add slight padding to top
-        doc.text(`[Image: ${image.alt || image.src}]`, x, currentY + 1.5)
-        doc.setTextColor(0, 0, 0)
-        currentY += 15 // Reduced spacing for placeholder images
+        // Load the image from a URL
+        img.onload = async () => {
+          // Calculate dimensions to maintain aspect ratio correctly
+          const aspectRatio = img.width / img.height
+
+          // Set a maximum width based on available space
+          const imgWidth = Math.min(maxWidth, 150)
+
+          // Calculate height based on the aspect ratio
+          const imgHeight = imgWidth / aspectRatio
+
+          // If the height is too large, recalculate width based on max height
+          const finalHeight = Math.min(imgHeight, maxImageHeight)
+          const finalWidth = finalHeight * aspectRatio
+
+          try {
+            // Check if we need a new page for the image
+            if (currentY + finalHeight + 10 > pageHeight - margin) {
+              // Store current page number before adding a new page
+              const currentPage = doc.getCurrentPageInfo().pageNumber
+
+              doc.addPage()
+              currentY = margin
+
+              // Draw the section divider on the new page - only if we're not at the last section
+              if (sectionInfo.currentSection < sectionInfo.totalSections) {
+                // Draw the vertical divider
+                doc.setDrawColor(230, 230, 230)
+                doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+              }
+            }
+
+            // Add the image to the PDF with the correct dimensions
+            doc.addImage(img, "JPEG", x, currentY, finalWidth, finalHeight, undefined, "FAST")
+            console.log("Added image to PDF successfully")
+
+            // Add caption if there's alt text
+            if (image.alt) {
+              doc.setFontSize(11) // Standardized font size for all text
+              doc.setTextColor(100, 100, 100)
+              const captionY = currentY + finalHeight + 3 // Reduced spacing before caption
+
+              // Check if caption needs a new page
+              if (captionY + 8 > pageHeight - margin) {
+                // Store current page number before adding a new page
+                const currentPage = doc.getCurrentPageInfo().pageNumber
+
+                doc.addPage()
+                currentY = margin
+
+                // Reset text properties
+                doc.setFontSize(11) // Standardized font size for all text
+                doc.setTextColor(0, 0, 0)
+
+                // Draw the section divider on the new page - only if we're not at the last section
+                if (sectionInfo.currentSection < sectionInfo.totalSections) {
+                  // Draw the vertical divider
+                  doc.setDrawColor(230, 230, 230)
+                  doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
+                }
+
+                // Re-add the image on the new page
+                doc.addImage(img, "JPEG", x, currentY, finalWidth, finalHeight, undefined, "FAST")
+              }
+
+              // Set caption font properties
+              doc.setFontSize(11) // Standardized font size for all text
+              doc.setTextColor(100, 100, 100)
+
+              // Draw the caption
+              const captionLines = doc.splitTextToSize(image.alt, maxWidth)
+              captionLines.forEach((captionLine) => {
+                doc.text(captionLine, x, currentY + 1.5)
+                currentY += lineHeight
+              })
+            }
+
+            // Reset text color
+            doc.setTextColor(0, 0, 0)
+
+            // Move to the next position
+            currentY += finalHeight + imageMargin
+          } catch (error) {
+            console.error("Error adding image to PDF:", error)
+          }
+        }
+        img.onerror = () => {
+          console.error("Error loading image:", image.src)
+        }
+        img.src = image.src
       }
-    } catch (error) {
-      console.error(`Failed to add image to PDF: ${image.src}`, error)
-      // Add a placeholder for failed images
-      doc.setFontSize(11) // Standardized font size for all text
-      doc.setTextColor(100, 100, 100)
-      // Add slight padding to top
-      doc.text(`[Image could not be loaded: ${error.message || "Unknown error"}]`, x, currentY + 1.5)
-      doc.setTextColor(0, 0, 0)
-      currentY += 15 // Reduced spacing for placeholder images
     }
+    \
   }
+  \
 
   return currentY
-}
-
-// Export to PDF with improved markdown rendering
-export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
-  try {
-    // First, process the markdown to load images from storage
-    const processedMarkdown = await processContentForExport(markdown)
-
-    const sections = parseMarkdown(processedMarkdown)
-
-    // Create a new PDF document with clean, minimal styling
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    })
-
-    // Get page dimensions
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const margin = 15
-    const keyPointsWidth = 45
-    const contentWidth = pageWidth - margin - keyPointsWidth - margin
-
-    // Set clean, modern font
-    doc.setFont("helvetica", "normal")
-
-    // Set title - clean and minimal
-    doc.setFontSize(24)
-    doc.setFont("helvetica", "bold")
-    doc.text(title, 15, 20)
-    doc.setFont("helvetica", "normal")
-
-    // Add summary if provided - clean styling
-    let y = 30
-    if (summary) {
-      doc.setFontSize(11)
-      const summaryLineHeight = 6
-      const summaryLines = doc.splitTextToSize(summary, 180)
-
-      // Apply clean line spacing
-      for (let i = 0; i < summaryLines.length; i++) {
-        doc.text(summaryLines[i], 15, y + i * summaryLineHeight + 1.5)
-      }
-
-      y += summaryLines.length * summaryLineHeight + 4
-    } else {
-      y = 35
-    }
-
-    // Draw a light horizontal line under the header - minimal styling
-    doc.setDrawColor(230, 230, 230)
-    doc.line(margin, y + 2, margin + keyPointsWidth + contentWidth, y + 2)
-
-    y += 8
-
-    // Track section boundaries for proper horizontal line alignment
-    const sectionBoundaries = []
-
-    // Track pages that contain continuation of sections
-    const continuationPages = new Map<number, number>()
-
-    for (let index = 0; index < sections.length; index++) {
-      const section = sections[index]
-
-      // Skip sections with empty content
-      if (!section.content.trim()) {
-        continue
-      }
-
-      // Check if we need a new page
-      if (y + 20 > pageHeight - margin) {
-        doc.addPage()
-        y = margin
-        y += 8
-      }
-
-      const startY = y
-      const startPage = doc.getCurrentPageInfo().pageNumber
-
-      // Draw key point (heading) with clean styling
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "bold")
-      const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
-
-      const headingLineHeight = 6
-      for (let i = 0; i < headingLines.length; i++) {
-        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
-      }
-      doc.setFont("helvetica", "normal")
-
-      const headingHeight = headingLines.length * headingLineHeight + 5
-
-      // Content area
-      const contentStartX = margin + keyPointsWidth + 5
-      const contentStartY = y + 5
-
-      // Pass section info to the rendering functions
-      const sectionInfo = {
-        currentSection: index,
-        totalSections: sections.length,
-      }
-
-      // Draw content with improved markdown rendering
-      doc.setFontSize(11)
-      const contentEndY = renderMarkdownContent(
-        doc,
-        section.content,
-        contentStartX,
-        contentStartY,
-        contentWidth - 10,
-        pageHeight,
-        margin,
-        keyPointsWidth,
-        pageWidth - margin * 2,
-        sectionInfo,
-      )
-
-      // Add images after the text content
-      const imagesEndY = await addImagesToPdf(
-        doc,
-        section.content,
-        contentStartX,
-        contentEndY + 3,
-        contentWidth - 10,
-        pageHeight,
-        margin,
-        keyPointsWidth,
-        pageWidth - margin * 2,
-        sectionInfo,
-      )
-
-      // Store section boundary information for proper line drawing
-      const endPage = doc.getCurrentPageInfo().pageNumber
-      sectionBoundaries.push({
-        index,
-        startY,
-        startPage,
-        endY: imagesEndY,
-        endPage,
-      })
-
-      // Track all pages that contain this section
-      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
-        if (pageNum > startPage) {
-          continuationPages.set(pageNum, index)
-        }
-      }
-
-      // Draw section with very light borders - minimal styling
-      doc.setDrawColor(240, 240, 240)
-
-      // Draw vertical divider between key points and notes
-      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
-        doc.setPage(pageNum)
-
-        if (pageNum === startPage) {
-          const endY = pageNum === endPage ? imagesEndY : pageHeight - margin
-          doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, endY)
-        } else if (pageNum === endPage) {
-          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, imagesEndY)
-        } else {
-          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
-        }
-      }
-
-      // Set back to the last page
-      doc.setPage(endPage)
-
-      // Update y position for next section
-      y = imagesEndY + 0.5
-    }
-
-    // Draw horizontal lines at the bottom of each section - minimal styling
-    for (let i = 0; i < sectionBoundaries.length; i++) {
-      const section = sectionBoundaries[i]
-
-      // Only draw bottom line if not the last section
-      if (i < sectionBoundaries.length - 1) {
-        doc.setPage(section.endPage)
-        doc.setDrawColor(240, 240, 240)
-        doc.line(margin, section.endY, margin + keyPointsWidth + contentWidth, section.endY)
-      }
-    }
-
-    // Handle continuation pages - clean styling
-    const totalPages = doc.getNumberOfPages()
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      if (continuationPages.has(pageNum)) {
-        const sectionIndex = continuationPages.get(pageNum)!
-        const section = sections[sectionIndex]
-
-        doc.setPage(pageNum)
-
-        // Draw the key point heading on the continuation page
-        doc.setFontSize(11)
-        doc.setFont("helvetica", "bold")
-        const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
-
-        const headingLineHeight = 6
-        for (let i = 0; i < headingLines.length; i++) {
-          doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
-        }
-        doc.setFont("helvetica", "normal")
-      }
-
-      // Removed page numbers
-    }
-
-    // Generate the PDF as a blob
-    const pdfBlob = doc.output("blob")
-
-    // Download the PDF
-    downloadBlob(pdfBlob, `${title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
-  } catch (error) {
-    console.error("Error generating PDF:", error)
-    throw new Error(`Failed to generate PDF: ${error instanceof Error ? error.message : "Unknown error"}`)
-  }
 }

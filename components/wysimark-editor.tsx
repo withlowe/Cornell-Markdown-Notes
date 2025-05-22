@@ -1,4 +1,5 @@
 "use client"
+import { useRef, useEffect } from "react"
 import { Textarea } from "@/components/ui/textarea"
 
 interface WysimarkEditorProps {
@@ -9,11 +10,25 @@ interface WysimarkEditorProps {
 }
 
 export function WysimarkEditor({ value, onChange, placeholder, className }: WysimarkEditorProps) {
-  // Use a simple textarea as a fallback instead of trying to load Wysimark
-  // This avoids the tokenize import error completely
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Expose the textarea ref to the window for access from other components
+  useEffect(() => {
+    if (textareaRef.current) {
+      // @ts-ignore - Adding a custom property to window
+      window.cornellNotesTextarea = textareaRef.current
+    }
+
+    return () => {
+      // @ts-ignore - Clean up when component unmounts
+      delete window.cornellNotesTextarea
+    }
+  }, [textareaRef.current])
+
   return (
     <div className={`editor-container ${className || ""}`}>
       <Textarea
+        ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder || "Enter your markdown notes here..."}

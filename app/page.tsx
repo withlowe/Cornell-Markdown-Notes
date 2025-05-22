@@ -99,10 +99,11 @@ Here's a simple list of React concepts:
     insertAtCursor(imageMarkdown)
   }
 
-  // Replace the insertAtCursor function with this improved version that inserts at cursor position
+  // Improved insertAtCursor function that properly inserts at cursor position
   const insertAtCursor = (content: string) => {
-    // Get the textarea element
-    const textarea = document.querySelector("textarea")
+    // Get the textarea element from the window object where WysimarkEditor exposed it
+    // @ts-ignore - Accessing custom property on window
+    const textarea = window.cornellNotesTextarea || document.querySelector("textarea")
 
     if (textarea) {
       // Get cursor position
@@ -113,26 +114,35 @@ Here's a simple list of React concepts:
       const textBefore = markdown.substring(0, startPos)
       const textAfter = markdown.substring(endPos)
 
+      // Determine appropriate spacing
+      const needsNewlineBefore = textBefore.length > 0 && !textBefore.endsWith("\n\n") && !textBefore.endsWith("\n")
+      const needsNewlineAfter = textAfter.length > 0 && !textAfter.startsWith("\n\n") && !textAfter.startsWith("\n")
+
       // Insert content at cursor position with proper spacing
       const newText =
-        textBefore +
-        (textBefore.endsWith("\n\n") ? "" : textBefore.endsWith("\n") ? "\n" : "\n\n") +
-        content +
-        (textAfter.startsWith("\n") ? "" : "\n\n") +
-        textAfter
+        textBefore + (needsNewlineBefore ? "\n\n" : "") + content + (needsNewlineAfter ? "\n\n" : "") + textAfter
 
+      // Update the markdown state
       setMarkdown(newText)
 
       // Set cursor position after inserted content
       setTimeout(() => {
-        const newCursorPos =
-          startPos + content.length + (textBefore.endsWith("\n\n") ? 0 : textBefore.endsWith("\n") ? 1 : 2)
+        const newCursorPos = startPos + (needsNewlineBefore ? 2 : 0) + content.length
+
         textarea.focus()
         textarea.setSelectionRange(newCursorPos, newCursorPos)
-      }, 0)
+
+        // Scroll to the cursor position
+        const lineHeight = Number.parseInt(getComputedStyle(textarea).lineHeight) || 20
+        const currentLineNumber = (textarea.value.substring(0, newCursorPos).match(/\n/g) || []).length
+        const approximateScrollPosition = lineHeight * currentLineNumber
+
+        textarea.scrollTop = approximateScrollPosition - textarea.clientHeight / 2
+      }, 10)
     } else {
       // Fallback to appending if textarea not found
       setMarkdown(markdown + "\n\n" + content)
+      console.error("Textarea not found for cursor positioning")
     }
   }
 
