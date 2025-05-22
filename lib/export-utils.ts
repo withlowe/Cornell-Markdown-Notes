@@ -776,14 +776,14 @@ function renderMarkdownContent(
     // Check for code blocks
     if (line.trim().startsWith("```")) {
       const codeLines = []
-      i++ // Skip the opening \`\`\`
+      i++ // Skip the opening ```
 
       while (i < lines.length && !lines[i].trim().startsWith("```")) {
         codeLines.push(lines[i])
         i++
       }
 
-      i++ // Skip the closing \`\`\`
+      i++ // Skip the closing ```
       currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth, pageHeight, margin)
       continue
     }
@@ -1024,6 +1024,7 @@ async function addImagesToPdf(
 
       // Create an image element to get dimensions
       const img = new Image()
+      img.crossOrigin = "anonymous"
 
       // Check if it's a cornell-image:// URL
       if (image.src.startsWith("cornell-image://")) {
