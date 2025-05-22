@@ -958,6 +958,7 @@ async function addImagesToPdf(
   let currentY = y
   const imageMargin = 6 // Reduced space between images
   const maxImageHeight = 60 // Maximum height for images in the PDF
+  const lineHeight = 8 // Standardized line height for text
 
   // Extract all image URLs (both markdown and HTML)
   const htmlImageRegex = /<img.*?src=["'](.*?)["'].*?>/g
@@ -1247,10 +1248,10 @@ async function addImagesToPdf(
         }
         img.src = image.src
       }
+    } catch (error) {
+      console.error("Error processing image:", error)
     }
-    \
   }
-  \
 
   return currentY
 }
