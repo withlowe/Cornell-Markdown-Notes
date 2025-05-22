@@ -1,3 +1,5 @@
+@import "./wysimark.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,47 +7,47 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 0 0% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 10%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 70%;
+    --radius: 0.25rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --background: 0 0% 10%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 10%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 0 0% 40%;
   }
 }
 
@@ -55,12 +57,200 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
+  h1 {
+    @apply text-3xl font-medium tracking-tight;
+  }
+  h2 {
+    @apply text-2xl font-medium tracking-tight;
+  }
+  h3 {
+    @apply text-xl font-medium tracking-tight;
+  }
+  h4 {
+    @apply text-lg font-medium tracking-tight;
+  }
+  h5,
+  h6 {
+    @apply text-base font-medium tracking-tight;
+  }
+  p {
+    @apply text-base leading-relaxed;
+  }
+}
+
+/* Standardized typography */
+.text-heading-1 {
+  @apply text-3xl font-medium tracking-tight;
+}
+
+.text-heading-2 {
+  @apply text-2xl font-medium tracking-tight;
+}
+
+.text-heading-3 {
+  @apply text-xl font-medium tracking-tight;
+}
+
+.text-body {
+  @apply text-base leading-relaxed;
+}
+
+.text-body-sm {
+  @apply text-sm leading-relaxed;
+}
+
+.text-caption {
+  @apply text-sm text-muted-foreground;
+}
+
+/* Standardized button sizes */
+.btn-standard {
+  @apply h-10 px-4 py-2 text-sm font-medium rounded-md;
+}
+
+.btn-sm {
+  @apply h-8 px-3 py-1 text-sm font-medium rounded-md;
+}
+
+.btn-lg {
+  @apply h-12 px-6 py-3 text-base font-medium rounded-md;
+}
+
+/* Standardized input sizes */
+.input-standard {
+  @apply h-10 px-3 py-2 text-base rounded-md;
+}
+
+.textarea-standard {
+  @apply px-3 py-2 text-base rounded-md;
+}
+
+/* Clean, minimal design system */
+.container-standard {
+  @apply max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.card-standard {
+  @apply bg-white border border-gray-100 rounded-md overflow-hidden transition-all duration-300;
+}
+
+.card-standard:hover {
+  @apply shadow-sm;
+}
+
+/* Flashcard styles - REDESIGNED with flip animation */
+.flashcard-container {
+  perspective: 1000px;
+  height: 300px;
+}
+
+.flashcard-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+
+.flashcard-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.flashcard-front,
+.flashcard-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border: 1px solid #e5e5e5;
+  background-color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: var(--radius);
+}
+
+.flashcard-back {
+  transform: rotateY(180deg);
+}
+
+.flashcard-content {
+  @apply text-center py-8 px-4;
+}
+
+.flashcard-quote {
+  @apply text-lg md:text-xl leading-relaxed mb-4;
+}
+
+.flashcard-attribution {
+  @apply text-caption;
+}
+
+.flashcard-flip-hint {
+  @apply text-xs text-muted-foreground absolute bottom-3 left-0 right-0 text-center;
+}
+
+.flashcard-nav {
+  @apply flex justify-between items-center mt-4;
+}
+
+.flashcard-nav-button {
+  @apply border border-gray-200 py-1 px-3 text-sm font-medium hover:bg-gray-50 rounded-md;
+}
+
+/* Rating buttons */
+.flashcard-rating {
+  @apply w-full max-w-xs;
+}
+
+.rating-button {
+  @apply min-w-[100px];
+}
+
+.rating-easy {
+  @apply bg-green-600 hover:bg-green-700 text-white;
+}
+
+.rating-hard {
+  @apply border-orange-500 text-orange-500 hover:bg-orange-50;
+}
+
+/* Flashcard deck styles */
+.flashcard-deck {
+  @apply border border-gray-200 p-6 mb-4 rounded-md;
+}
+
+.flashcard-deck-header {
+  @apply flex justify-between items-start mb-3;
+}
+
+.flashcard-deck-title {
+  @apply text-heading-2;
+}
+
+.flashcard-deck-actions {
+  @apply flex gap-2;
+}
+
+.flashcard-deck-meta {
+  @apply flex flex-wrap gap-2 mb-2;
+}
+
+.flashcard-deck-description {
+  @apply text-caption mb-3;
+}
+
+.flashcard-deck-footer {
+  @apply text-xs text-muted-foreground;
 }
 
 /* Add styles for markdown content */
 .markdown-content {
-  @apply text-sm leading-relaxed;
+  @apply text-body;
 }
 
 .markdown-content pre {
@@ -68,7 +258,7 @@
 }
 
 .markdown-content code {
-  @apply text-xs;
+  @apply text-sm;
 }
 
 .markdown-content table {
@@ -108,31 +298,32 @@
   @apply mb-4 last:mb-0;
 }
 
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3,
-.markdown-content h4,
-.markdown-content h5,
-.markdown-content h6 {
-  @apply font-bold mt-6 mb-4;
-}
-
 .markdown-content h1 {
-  @apply text-2xl;
+  @apply text-heading-1 mt-6 mb-4;
 }
 
 .markdown-content h2 {
-  @apply text-xl;
+  @apply text-heading-2 mt-6 mb-4;
 }
 
 .markdown-content h3 {
-  @apply text-lg;
+  @apply text-heading-3 mt-6 mb-4;
 }
 
 .markdown-content h4 {
-  @apply text-base;
+  @apply text-lg font-medium mt-6 mb-4;
 }
 
 .markdown-content a {
   @apply text-primary underline;
+}
+
+/* Editor container */
+.editor-container {
+  @apply border border-border overflow-hidden rounded-md;
+}
+
+.editor-container textarea {
+  @apply p-4 text-base leading-relaxed;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
