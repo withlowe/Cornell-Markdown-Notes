@@ -14,6 +14,7 @@ import { ImageInserter } from "@/components/image-inserter"
 import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
 import { WysimarkEditor } from "@/components/wysimark-editor"
+import { Hash } from "lucide-react"
 
 export default function NotesApp() {
   const router = useRouter()
@@ -99,8 +100,8 @@ Here's a simple list of React concepts:
     insertAtCursor(imageMarkdown)
   }
 
-  // Improved insertAtCursor function that properly inserts at cursor position
-  const insertAtCursor = (content: string) => {
+  // Function to insert text at cursor position
+  const insertAtCursor = (textToInsert: string) => {
     // Get the textarea element from the window object where WysimarkEditor exposed it
     // @ts-ignore - Accessing custom property on window
     const textarea = window.cornellNotesTextarea || document.querySelector("textarea")
@@ -114,35 +115,30 @@ Here's a simple list of React concepts:
       const textBefore = markdown.substring(0, startPos)
       const textAfter = markdown.substring(endPos)
 
-      // Determine appropriate spacing
-      const needsNewlineBefore = textBefore.length > 0 && !textBefore.endsWith("\n\n") && !textBefore.endsWith("\n")
-      const needsNewlineAfter = textAfter.length > 0 && !textAfter.startsWith("\n\n") && !textAfter.startsWith("\n")
+      // Check if we're at the beginning of a line or if there's a newline before
+      const isAtLineStart = startPos === 0 || markdown.charAt(startPos - 1) === "\n"
 
-      // Insert content at cursor position with proper spacing
+      // If inserting a heading and not at the beginning of a line, add a newline first
+      const needsNewline = textToInsert.startsWith("#") && !isAtLineStart
+
+      // If the cursor is at the end of a line and the next character isn't a newline, add a newline after
+      const needsNewlineAfter =
+        textToInsert.startsWith("#") && endPos < markdown.length && markdown.charAt(endPos) !== "\n"
+
+      // Construct the new text
       const newText =
-        textBefore + (needsNewlineBefore ? "\n\n" : "") + content + (needsNewlineAfter ? "\n\n" : "") + textAfter
+        textBefore + (needsNewline ? "\n" : "") + textToInsert + (needsNewlineAfter ? "\n" : "") + textAfter
 
       // Update the markdown state
       setMarkdown(newText)
 
-      // Set cursor position after inserted content
+      // Set the cursor position after the inserted text
       setTimeout(() => {
-        const newCursorPos = startPos + (needsNewlineBefore ? 2 : 0) + content.length
+        const newCursorPos = startPos + (needsNewline ? 1 : 0) + textToInsert.length
 
         textarea.focus()
         textarea.setSelectionRange(newCursorPos, newCursorPos)
-
-        // Scroll to the cursor position
-        const lineHeight = Number.parseInt(getComputedStyle(textarea).lineHeight) || 20
-        const currentLineNumber = (textarea.value.substring(0, newCursorPos).match(/\n/g) || []).length
-        const approximateScrollPosition = lineHeight * currentLineNumber
-
-        textarea.scrollTop = approximateScrollPosition - textarea.clientHeight / 2
-      }, 10)
-    } else {
-      // Fallback to appending if textarea not found
-      setMarkdown(markdown + "\n\n" + content)
-      console.error("Textarea not found for cursor positioning")
+      }, 0)
     }
   }
 
@@ -216,6 +212,10 @@ Here's a simple list of React concepts:
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-heading-3">Input</h2>
                   <div className="flex gap-3">
+                    <Button size="default" variant="outline" onClick={() => insertAtCursor("#")}>
+                      <Hash className="h-4 w-4 mr-2" />
+                      Add Heading
+                    </Button>
                     <Button size="default" variant="outline" onClick={() => setIsImageInserterOpen(true)}>
                       Add Image
                     </Button>

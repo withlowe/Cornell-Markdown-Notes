@@ -776,14 +776,14 @@ function renderMarkdownContent(
     // Check for code blocks
     if (line.trim().startsWith("```")) {
       const codeLines = []
-      i++ // Skip the opening ```
+      i++ // Skip the opening \`\`\`
 
       while (i < lines.length && !lines[i].trim().startsWith("```")) {
         codeLines.push(lines[i])
         i++
       }
 
-      i++ // Skip the closing ```
+      i++ // Skip the closing \`\`\`
       currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth, pageHeight, margin)
       continue
     }
@@ -852,53 +852,16 @@ function renderMarkdownContent(
       continue
     }
 
-    // Check for HTML image tags
+    // Check for HTML image tags - REMOVED PLACEHOLDER TEXT
     if (line.includes("<img") && line.includes("src=")) {
-      // Extract the image URL and alt text
-      const srcMatch = line.match(/src=["'](.*?)["']/)
-      const altMatch = line.match(/alt=["'](.*?)["']/)
-
-      if (srcMatch) {
-        // Check if we need a new page
-        if (currentY + lineHeight * 2 > pageHeight - margin) {
-          doc.addPage()
-          currentY = margin
-        }
-
-        // Add a placeholder for the image
-        doc.setFontSize(11) // Standardized font size for all text
-        doc.setTextColor(100, 100, 100)
-        // Add slight padding to top
-        doc.text(`[Image: ${altMatch ? altMatch[1] : "Image"}]`, x, currentY + 1.5)
-        doc.setTextColor(0, 0, 0)
-        currentY += lineHeight * 1.5 // Reduced spacing after image placeholders
-      }
-
+      // Skip the image line without adding any placeholder text
       i++
       continue
     }
 
-    // Check for markdown images
+    // Check for markdown images - REMOVED PLACEHOLDER TEXT
     if (line.includes("![") && line.includes("](")) {
-      // Extract the image URL and alt text
-      const match = line.match(/!\[(.*?)\]$$(.*?)$$/)
-
-      if (match) {
-        // Check if we need a new page
-        if (currentY + lineHeight * 2 > pageHeight - margin) {
-          doc.addPage()
-          currentY = margin
-        }
-
-        // Add a placeholder for the image
-        doc.setFontSize(11) // Standardized font size for all text
-        doc.setTextColor(100, 100, 100)
-        // Add slight padding to top
-        doc.text(`[Image: ${match[1] || "Image"}]`, x, currentY + 1.5)
-        doc.setTextColor(0, 0, 0)
-        currentY += lineHeight * 1.5 // Reduced spacing after image placeholders
-      }
-
+      // Skip the image line without adding any placeholder text
       i++
       continue
     }
@@ -1011,14 +974,9 @@ async function addImagesToPdf(
         }
       }
 
-      // Skip placeholder images
+      // Skip placeholder images - NO TEXT PLACEHOLDER ADDED
       if (image.src.includes("/placeholder.svg") || image.src.includes("/generic-placeholder-icon.png")) {
-        doc.setFontSize(11) // Standardized font size for all text
-        doc.setTextColor(100, 100, 100)
-        // Add slight padding to top
-        doc.text(`[Placeholder Image: ${image.alt || "Image"}]`, x, currentY + 1.5)
-        doc.setTextColor(0, 0, 0)
-        currentY += 15 // Reduced spacing for placeholder images
+        // Skip without adding any text
         continue
       }
 
@@ -1034,24 +992,12 @@ async function addImagesToPdf(
           if (imageData) {
             image.src = imageData
           } else {
-            // Use a placeholder if image not found
-            doc.setFontSize(11) // Standardized font size for all text
-            doc.setTextColor(100, 100, 100)
-            // Add slight padding to top
-            doc.text(`[Image not found: ${image.alt || "Unknown"}]`, x, currentY + 1.5)
-            doc.setTextColor(0, 0, 0)
-            currentY += 15 // Reduced spacing for placeholder images
+            // Skip if image not found - NO TEXT PLACEHOLDER ADDED
             continue
           }
         } catch (error) {
           console.error("Error loading image from storage:", error)
-          // Use a placeholder if loading fails
-          doc.setFontSize(11) // Standardized font size for all text
-          doc.setTextColor(100, 100, 100)
-          // Add slight padding to top
-          doc.text(`[Image could not be loaded: ${image.alt || "Unknown"}]`, x, currentY + 1.5)
-          doc.setTextColor(0, 0, 0)
-          currentY += 15 // Reduced spacing for placeholder images
+          // Skip if loading fails - NO TEXT PLACEHOLDER ADDED
           continue
         }
       }

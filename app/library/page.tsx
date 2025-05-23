@@ -26,6 +26,10 @@ import {
 // Import the exportToPdf function
 import { exportToPdf } from "@/lib/export-utils"
 
+// Add sorting functionality to the library page
+// First, add these imports at the top of the file (after the existing imports)
+import { ChevronDown, SortAsc, SortDesc } from "lucide-react"
+
 export default function LibraryPage() {
   const router = useRouter()
   const [documents, setDocuments] = useState<DocumentData[]>([])
@@ -36,6 +40,10 @@ export default function LibraryPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Then, add these state variables after the existing state declarations
+  const [sortBy, setSortBy] = useState<"date" | "title" | "tags">("date")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   useEffect(() => {
     loadDocuments()
@@ -73,20 +81,37 @@ export default function LibraryPage() {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
   }
 
-  // Fixed search and tag filtering
-  const filteredDocuments = documents.filter((doc) => {
-    // Filter by search term (fixed to properly search in title and content)
-    const matchesSearch =
-      searchTerm === "" ||
-      doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (doc.summary && doc.summary.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      doc.content.toLowerCase().includes(searchTerm.toLowerCase())
+  // Replace the filteredDocuments declaration with this updated version that includes sorting
+  const filteredDocuments = documents
+    .filter((doc) => {
+      // Filter by search term (fixed to properly search in title and content)
+      const matchesSearch =
+        searchTerm === "" ||
+        doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.summary && doc.summary.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        doc.content.toLowerCase().includes(searchTerm.toLowerCase())
 
-    // Filter by selected tags (fixed to properly filter by tags)
-    const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => doc.tags.includes(tag))
+      // Filter by selected tags (fixed to properly filter by tags)
+      const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => doc.tags.includes(tag))
 
-    return matchesSearch && matchesTags
-  })
+      return matchesSearch && matchesTags
+    })
+    .sort((a, b) => {
+      // Sort by the selected field
+      if (sortBy === "date") {
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA
+      } else if (sortBy === "title") {
+        return sortDirection === "asc" ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title)
+      } else if (sortBy === "tags") {
+        // Sort by the first tag, or title if no tags
+        const tagA = a.tags.length > 0 ? a.tags[0] : ""
+        const tagB = b.tags.length > 0 ? b.tags[0] : ""
+        return sortDirection === "asc" ? tagA.localeCompare(tagB) : tagB.localeCompare(tagA)
+      }
+      return 0
+    })
 
   const extractHeadings = (content: string): string[] => {
     const headings: string[] = []
@@ -186,6 +211,38 @@ export default function LibraryPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between font-medium mb-2 text-sm">
+              <div>Sort By</div>
+            </div>
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex-1 justify-between">
+                    {sortBy === "date" ? "Date" : sortBy === "title" ? "Title" : "Tags"}
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setSortBy("date")}>Date {sortBy === "date" && "✓"}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("title")}>
+                    Title {sortBy === "title" && "✓"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("tags")}>Tags {sortBy === "tags" && "✓"}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-10 p-0 flex-shrink-0"
+                onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                title={sortDirection === "asc" ? "Ascending" : "Descending"}
+              >
+                {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
 
           <div className="mb-4">
@@ -321,6 +378,38 @@ export default function LibraryPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between font-medium mb-2 text-sm">
+              <div>Sort By</div>
+            </div>
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex-1 justify-between">
+                    {sortBy === "date" ? "Date" : sortBy === "title" ? "Title" : "Tags"}
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setSortBy("date")}>Date {sortBy === "date" && "✓"}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("title")}>
+                    Title {sortBy === "title" && "✓"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("tags")}>Tags {sortBy === "tags" && "✓"}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-10 p-0 flex-shrink-0"
+                onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                title={sortDirection === "asc" ? "Ascending" : "Descending"}
+              >
+                {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
 
           <div className="mb-4">
