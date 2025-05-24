@@ -1,12 +1,16 @@
 "use client"
 
+import type React from "react"
+
 import { useMemo, useEffect, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { getImage } from "@/lib/image-storage"
+import { processNoteLinks } from "@/lib/link-utils"
 
 interface CornellNotesProps {
   markdown: string
+  onNoteClick?: (title: string) => void
 }
 
 interface Section {
@@ -14,10 +18,10 @@ interface Section {
   content: string
 }
 
-export function CornellNotes({ markdown }: CornellNotesProps) {
+export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
   const [processedContent, setProcessedContent] = useState<string>(markdown)
 
-  // Process the markdown to load images from storage
+  // Process the markdown to load images from storage and handle note links
   useEffect(() => {
     const processImages = async () => {
       let content = markdown
@@ -55,11 +59,16 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
         }
       }
 
+      // Process note links if onNoteClick is provided
+      if (onNoteClick) {
+        content = processNoteLinks(content, onNoteClick)
+      }
+
       setProcessedContent(content)
     }
 
     processImages()
-  }, [markdown])
+  }, [markdown, onNoteClick])
 
   const sections = useMemo(() => {
     // Split the markdown by headings
@@ -100,6 +109,29 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
     return sections
   }, [processedContent])
 
+  // Handle note link clicks with improved event handling
+  const handleContentClick = (event: React.MouseEvent) => {
+    const target = event.target as HTMLElement
+
+    // Check if the clicked element or any parent has the note-link class
+    let linkElement = target
+    while (linkElement && !linkElement.classList.contains("note-link")) {
+      linkElement = linkElement.parentElement as HTMLElement
+      if (!linkElement || linkElement === event.currentTarget) break
+    }
+
+    if (linkElement && linkElement.classList.contains("note-link") && onNoteClick) {
+      event.preventDefault()
+      event.stopPropagation()
+
+      const title = linkElement.getAttribute("data-title")
+      if (title) {
+        console.log("Note link clicked:", title)
+        onNoteClick(title)
+      }
+    }
+  }
+
   // If there are no sections, show a message
   if (sections.length === 0) {
     return (
@@ -108,7 +140,7 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
   }
 
   return (
-    <div className="border rounded-md overflow-hidden">
+    <div className="border rounded-md overflow-hidden" onClick={handleContentClick}>
       {/* Changed to a table-like layout for better alignment */}
       <div className="grid grid-cols-[1fr_3fr] divide-x divide-border">
         {/* Header row */}
@@ -222,23 +254,31 @@ export function CornellNotes({ markdown }: CornellNotesProps) {
 
 // Extract and render HTML content
 function renderHtmlContent(content: string): string {
-  // Extract HTML image tags
+  // Extract HTML image tags and note links
   const imgRegex = /<img.*?\/>/g
-  const matches = content.match(imgRegex)
+  const noteLinks = /<span class="note-link".*?<\/span>/g
 
-  if (!matches) return ""
+  const imgMatches = content.match(imgRegex) || []
+  const linkMatches = content.match(noteLinks) || []
 
-  // Return the HTML for these images with proper styling
-  return matches
-    .map((img) => {
-      // Add classes to the image for styling
-      return img.replace("<img", '<img class="max-w-full h-auto rounded-md my-4"')
+  const allMatches = [...imgMatches, ...linkMatches]
+
+  if (allMatches.length === 0) return ""
+
+  // Return the HTML for these elements with proper styling
+  return allMatches
+    .map((match) => {
+      if (match.includes("<img")) {
+        // Add classes to the image for styling
+        return match.replace("<img", '<img class="max-w-full h-auto rounded-md my-4"')
+      }
+      return match
     })
     .join("\n")
 }
 
 // Remove HTML content from markdown to prevent duplication
 function removeHtmlContent(content: string): string {
-  // Remove HTML image tags from the content to prevent them from being rendered as text
-  return content.replace(/<img.*?\/>/g, "")
+  // Remove HTML image tags and note links from the content to prevent them from being rendered as text
+  return content.replace(/<img.*?\/>/g, "").replace(/<span class="note-link".*?<\/span>/g, "")
 }

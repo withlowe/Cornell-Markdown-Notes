@@ -139,3 +139,13 @@
 .card-standard:hover {
   @apply shadow-sm;
 }
+
+/* Note link styling */
+.note-link {
+  @apply text-primary underline cursor-pointer hover:text-primary/80 transition-colors;
+  text-decoration-style: dotted;
+}
+
+.note-link:hover {
+  @apply bg-accent/50 px-1 rounded;
+}

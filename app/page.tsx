@@ -1,275 +1,612 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import type React from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { CornellNotes } from "@/components/cornell-notes"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { TagInput } from "@/components/tag-input"
-import { TableGenerator } from "@/components/table-generator"
-import { ImageInserter } from "@/components/image-inserter"
+import { getAllDocuments, deleteDocument, type DocumentData } from "@/lib/storage-utils"
+import { exportAllToZip, importMarkdownFiles } from "@/lib/export-import-utils"
+import { cn } from "@/lib/utils"
+import { CornellNotes } from "@/components/cornell-notes"
+import { RelatedNotes } from "@/components/related-notes"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { exportToPdf } from "@/lib/export-utils"
-import { saveDocument, getDocument } from "@/lib/storage-utils"
-import { WysimarkEditor } from "@/components/wysimark-editor"
-import { Hash } from "lucide-react"
+import { ChevronDown, SortAsc, SortDesc } from "lucide-react"
 
-export default function NotesApp() {
+export default function LibraryPage() {
   const router = useRouter()
-  const [id, setId] = useState<string | null>(null)
-  const [title, setTitle] = useState<string>("Untitled Note")
-  const [summary, setSummary] = useState<string>("")
-  const [tags, setTags] = useState<string[]>([])
-  const [markdown, setMarkdown] = useState<string>(
-    `# Introduction to React
-React is a JavaScript library for building user interfaces.
+  const [documents, setDocuments] = useState<DocumentData[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [allTags, setAllTags] = useState<string[]>([])
+  const [activeDocument, setActiveDocument] = useState<DocumentData | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-# Key Concepts
-React uses a virtual DOM to improve performance.
+  const [sortBy, setSortBy] = useState<"date" | "title" | "tags">("date")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
-Here's a simple list of React concepts:
-- Components
-- Props
-- State
-- JSX
-- Virtual DOM`,
-  )
-  const [isTableGeneratorOpen, setIsTableGeneratorOpen] = useState(false)
-  const [isImageInserterOpen, setIsImageInserterOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-
-  // Check if we're editing an existing document
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const docId = urlParams.get("id")
-
-    if (docId) {
-      const doc = getDocument(docId)
-      if (doc) {
-        setId(docId)
-        setTitle(doc.title)
-        setSummary(doc.summary || "")
-        setTags(doc.tags)
-        setMarkdown(doc.content)
-      }
-    }
+    loadDocuments()
   }, [])
 
-  const handleSave = async () => {
-    setIsSaving(true)
+  const loadDocuments = () => {
+    const docs = getAllDocuments()
+    setDocuments(docs)
+
+    const tags = docs.flatMap((doc) => doc.tags)
+    setAllTags([...new Set(tags)])
+
+    if (docs.length > 0 && !activeDocument) {
+      setActiveDocument(docs[0])
+    }
+  }
+
+  const handleDelete = (id: string) => {
+    deleteDocument(id)
+
+    if (activeDocument && activeDocument.id === id) {
+      const remainingDocs = documents.filter((doc) => doc.id !== id)
+      setActiveDocument(remainingDocs.length > 0 ? remainingDocs[0] : null)
+    }
+
+    loadDocuments()
+
+    console.log("Document deleted from library")
+  }
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+  }
+
+  const filteredDocuments = documents
+    .filter((doc) => {
+      const matchesSearch =
+        searchTerm === "" ||
+        doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.summary && doc.summary.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        doc.content.toLowerCase().includes(searchTerm.toLowerCase())
+
+      const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => doc.tags.includes(tag))
+
+      return matchesSearch && matchesTags
+    })
+    .sort((a, b) => {
+      if (sortBy === "date") {
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA
+      } else if (sortBy === "title") {
+        return sortDirection === "asc" ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title)
+      } else if (sortBy === "tags") {
+        const tagA = a.tags.length > 0 ? a.tags[0] : ""
+        const tagB = b.tags.length > 0 ? b.tags[0] : ""
+        return sortDirection === "asc" ? tagA.localeCompare(tagB) : tagB.localeCompare(tagA)
+      }
+      return 0
+    })
+
+  const extractHeadings = (content: string): string[] => {
+    const headings: string[] = []
+    const lines = content.split("\n")
+
+    lines.forEach((line) => {
+      if (line.startsWith("# ")) {
+        headings.push(line.substring(2))
+      }
+    })
+
+    return headings
+  }
+
+  const handleExportAll = async () => {
+    if (documents.length === 0) {
+      alert("No documents to export. Create some notes first before exporting.")
+      return
+    }
+
+    setIsExporting(true)
     try {
-      const docId = await saveDocument({
-        id: id || undefined,
-        title,
-        summary,
-        tags,
-        content: markdown,
-        createdAt: new Date().toISOString(),
-      })
-
-      setId(docId)
-
-      console.log("Document saved to library")
+      await exportAllToZip()
+      console.log(`Exported ${documents.length} notes as markdown files`)
+      alert(`Successfully exported ${documents.length} notes as markdown files`)
     } catch (error) {
-      console.error("Save failed:", error)
-      alert("There was an error saving your note. Please try again.")
+      console.error("Export failed:", error)
+      alert(`Export failed: ${error instanceof Error ? error.message : "Unknown error occurred"}`)
     } finally {
-      setIsSaving(false)
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImportFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    setIsImporting(true)
+    try {
+      const count = await importMarkdownFiles(files)
+      loadDocuments()
+      console.log(`Imported ${count} markdown files`)
+      alert(`Successfully imported ${count} markdown files`)
+    } catch (error) {
+      console.error("Import failed:", error)
+      alert(`Import failed: ${error instanceof Error ? error.message : "Unknown error occurred"}`)
+    } finally {
+      setIsImporting(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
     }
   }
 
   const handleExportPdf = async () => {
-    try {
-      await exportToPdf(title, summary, markdown)
+    if (!activeDocument) {
+      alert("Please select a document to export as PDF.")
+      return
+    }
 
+    try {
+      await exportToPdf(activeDocument.title, activeDocument.summary || "", activeDocument.content)
       console.log("PDF exported successfully")
+      alert(`Successfully exported "${activeDocument.title}" as PDF`)
     } catch (error) {
       console.error("PDF export failed:", error)
       alert(`PDF export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
-  const handleInsertTable = (tableMarkdown: string) => {
-    insertAtCursor(tableMarkdown)
-  }
+  // Handle note link clicks - improved with better logging and error handling
+  const handleNoteLinkClick = (title: string) => {
+    console.log("Note link clicked:", title)
 
-  const handleInsertImage = (imageMarkdown: string) => {
-    console.log("Inserting image markdown:", imageMarkdown.substring(0, 50) + "...")
-    insertAtCursor(imageMarkdown)
-  }
+    try {
+      const linkedDoc = documents.find((doc) => doc.title.toLowerCase() === title.toLowerCase())
 
-  // Function to insert text at cursor position
-  const insertAtCursor = (textToInsert: string) => {
-    // Get the textarea element from the window object where WysimarkEditor exposed it
-    // @ts-ignore - Accessing custom property on window
-    const textarea = window.cornellNotesTextarea || document.querySelector("textarea")
-
-    if (textarea) {
-      // Get cursor position
-      const startPos = textarea.selectionStart
-      const endPos = textarea.selectionEnd
-
-      // Get text before and after cursor
-      const textBefore = markdown.substring(0, startPos)
-      const textAfter = markdown.substring(endPos)
-
-      // Check if we're at the beginning of a line or if there's a newline before
-      const isAtLineStart = startPos === 0 || markdown.charAt(startPos - 1) === "\n"
-
-      // If inserting a heading and not at the beginning of a line, add a newline first
-      const needsNewline = textToInsert.startsWith("#") && !isAtLineStart
-
-      // If the cursor is at the end of a line and the next character isn't a newline, add a newline after
-      const needsNewlineAfter =
-        textToInsert.startsWith("#") && endPos < markdown.length && markdown.charAt(endPos) !== "\n"
-
-      // Construct the new text
-      const newText =
-        textBefore + (needsNewline ? "\n" : "") + textToInsert + (needsNewlineAfter ? "\n" : "") + textAfter
-
-      // Update the markdown state
-      setMarkdown(newText)
-
-      // Set the cursor position after the inserted text
-      setTimeout(() => {
-        const newCursorPos = startPos + (needsNewline ? 1 : 0) + textToInsert.length
-
-        textarea.focus()
-        textarea.setSelectionRange(newCursorPos, newCursorPos)
-      }, 0)
+      if (linkedDoc) {
+        console.log("Found existing document:", linkedDoc.title)
+        setActiveDocument(linkedDoc)
+      } else {
+        console.log("Document not found, creating new note with title:", title)
+        // If note doesn't exist, navigate to editor to create it
+        const encodedTitle = encodeURIComponent(title)
+        console.log("Navigating to editor with title:", encodedTitle)
+        router.push(`/editor?title=${encodedTitle}`)
+      }
+    } catch (error) {
+      console.error("Error handling note link click:", error)
+      // Fallback: still try to navigate to editor
+      router.push(`/editor?title=${encodeURIComponent(title)}`)
     }
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="container-standard py-8">
-        <header className="flex justify-between items-center mb-8">
-          <h1 className="text-heading-1">Notes</h1>
-          <div className="flex gap-3">
-            <Button size="default" variant="ghost" onClick={() => router.push("/library")}>
-              Library
+    <div className="flex min-h-screen bg-background text-foreground">
+      {/* Documentation-style sidebar - wider now */}
+      <aside className="hidden md:flex w-80 flex-col border-r border-border min-h-screen">
+        <div className="p-4 border-b border-border flex flex-col gap-3">
+          <Link href="/" className="font-medium text-lg">
+            Notes
+          </Link>
+          <Button size="default" className="w-full hidden md:block" onClick={() => router.push("/editor")}>
+            New Note
+          </Button>
+        </div>
+
+        <div className="p-4">
+          <div className="relative mb-4">
+            <Input
+              placeholder="Search notes..."
+              className="input-standard"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between font-medium mb-2 text-sm">
+              <div>Sort By</div>
+            </div>
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex-1 justify-between">
+                    {sortBy === "date" ? "Date" : sortBy === "title" ? "Title" : "Tags"}
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setSortBy("date")}>Date {sortBy === "date" && "✓"}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("title")}>
+                    Title {sortBy === "title" && "✓"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("tags")}>Tags {sortBy === "tags" && "✓"}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-10 p-0 flex-shrink-0"
+                onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                title={sortDirection === "asc" ? "Ascending" : "Descending"}
+              >
+                {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between font-medium mb-2 text-sm">
+              <div>Filter by Tags</div>
+              {selectedTags.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedTags([])} className="h-7 px-2 text-xs">
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="default" variant="outline" className="w-full justify-between">
+                  {selectedTags.length > 0
+                    ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
+                    : "Select tags"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 max-h-80 overflow-auto">
+                <DropdownMenuLabel>Available Tags</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {allTags.length > 0 ? (
+                  allTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag}
+                      checked={selectedTags.includes(tag)}
+                      onCheckedChange={() => toggleTag(tag)}
+                      className="uppercase"
+                    >
+                      {tag}
+                    </DropdownMenuCheckboxItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {selectedTags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedTags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="uppercase text-xs">
+                    {tag}
+                    <button className="ml-1 text-xs" onClick={() => toggleTag(tag)}>
+                      ×
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <div className="font-medium mb-2 text-sm">Documents</div>
+            {filteredDocuments.length > 0 ? (
+              filteredDocuments.map((doc) => (
+                <button
+                  key={doc.id}
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-sm rounded-md",
+                    activeDocument?.id === doc.id
+                      ? "bg-accent text-accent-foreground font-medium"
+                      : "hover:bg-accent/50",
+                  )}
+                  onClick={() => setActiveDocument(doc)}
+                >
+                  <div className="line-clamp-1">{doc.title}</div>
+                </button>
+              ))
+            ) : (
+              <div className="text-xs text-muted-foreground">No documents found</div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-auto p-4 border-t border-border flex flex-col gap-3">
+          <div className="flex gap-2">
+            <Button
+              size="default"
+              variant="outline"
+              className="flex-1"
+              onClick={handleExportAll}
+              disabled={isExporting}
+            >
+              Export All
             </Button>
             <Button
               size="default"
               variant="outline"
-              onClick={() => {
-                setId(null)
-                setTitle("Untitled Note")
-                setSummary("")
-                setTags([])
-                setMarkdown("")
-              }}
+              className="flex-1"
+              onClick={handleImportClick}
+              disabled={isImporting}
             >
+              Import
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportFiles}
+              accept=".md"
+              multiple
+              className="hidden"
+            />
+          </div>
+        </div>
+      </aside>
+
+      {/* Main content area */}
+      <main className="flex-1 overflow-auto bg-background">
+        {/* Mobile header */}
+        <header className="md:hidden flex items-center justify-between p-4 border-b border-border">
+          <Link href="/" className="font-medium">
+            Notes
+          </Link>
+          <div className="flex gap-2">
+            <Button size="default" variant="outline" onClick={() => router.push("/editor")}>
               New Note
             </Button>
           </div>
         </header>
 
-        <div className="space-y-6">
-          <Card className="border shadow-sm card-standard">
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                  <Label htmlFor="title" className="mb-2 block text-sm font-medium">
-                    Title
-                  </Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Note title"
-                    className="input-standard"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="tags" className="mb-2 block text-sm font-medium">
-                    Tags
-                  </Label>
-                  <TagInput id="tags" tags={tags} setTags={setTags} placeholder="Add tags..." />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="summary" className="mb-2 block text-sm font-medium">
-                  Summary
-                </Label>
-                <Textarea
-                  id="summary"
-                  value={summary}
-                  onChange={(e) => setSummary(e.target.value)}
-                  placeholder="Brief summary of your note"
-                  className="resize-none h-20 textarea-standard"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border shadow-sm card-standard h-[600px] flex flex-col">
-              <CardContent className="p-6 flex-1 flex flex-col">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-heading-3">Input</h2>
-                  <div className="flex gap-3">
-                    <Button size="default" variant="outline" onClick={() => insertAtCursor("#")}>
-                      <Hash className="h-4 w-4 mr-2" />
-                      Add Heading
-                    </Button>
-                    <Button size="default" variant="outline" onClick={() => setIsImageInserterOpen(true)}>
-                      Add Image
-                    </Button>
-                    <Button size="default" variant="outline" onClick={() => setIsTableGeneratorOpen(true)}>
-                      Add Table
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <WysimarkEditor
-                    value={markdown}
-                    onChange={setMarkdown}
-                    placeholder="Enter your markdown notes here..."
-                    className="flex-1 min-h-0"
-                  />
-                </div>
-                <div className="mt-3 text-caption">
-                  Use markdown headings (#) for key points. Content under each heading will appear as notes.
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-sm card-standard min-h-[600px] flex flex-col">
-              <CardContent className="p-6 flex-1 flex flex-col">
-                <h2 className="text-heading-3 mb-4">Preview</h2>
-                <div className="flex-1 overflow-y-auto pr-2">
-                  <CornellNotes markdown={markdown} />
-                </div>
-              </CardContent>
-            </Card>
+        {/* Mobile search and filters */}
+        <div className="md:hidden p-4 border-b border-border">
+          <div className="relative mb-4">
+            <Input
+              placeholder="Search notes..."
+              className="input-standard"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
 
-          <div className="flex justify-end gap-3 mt-6">
-            <Button size="default" variant="outline" onClick={handleExportPdf}>
-              Export PDF
+          <div className="mb-4">
+            <div className="flex items-center justify-between font-medium mb-2 text-sm">
+              <div>Sort By</div>
+            </div>
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex-1 justify-between">
+                    {sortBy === "date" ? "Date" : sortBy === "title" ? "Title" : "Tags"}
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setSortBy("date")}>Date {sortBy === "date" && "✓"}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("title")}>
+                    Title {sortBy === "title" && "✓"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("tags")}>Tags {sortBy === "tags" && "✓"}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-10 p-0 flex-shrink-0"
+                onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                title={sortDirection === "asc" ? "Ascending" : "Descending"}
+              >
+                {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between font-medium mb-2 text-sm">
+              <div>Filter by Tags</div>
+              {selectedTags.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedTags([])} className="h-7 px-2 text-xs">
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="default" variant="outline" className="w-full justify-between">
+                  {selectedTags.length > 0
+                    ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
+                    : "Select tags"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 max-h-80 overflow-auto">
+                <DropdownMenuLabel>Available Tags</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {allTags.length > 0 ? (
+                  allTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag}
+                      checked={selectedTags.includes(tag)}
+                      onCheckedChange={() => toggleTag(tag)}
+                      className="uppercase"
+                    >
+                      {tag}
+                    </DropdownMenuCheckboxItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {selectedTags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedTags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="uppercase text-xs">
+                    {tag}
+                    <button className="ml-1 text-xs" onClick={() => toggleTag(tag)}>
+                      ×
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 mt-4">
+            <Button
+              size="default"
+              variant="outline"
+              className="flex-1"
+              onClick={handleExportAll}
+              disabled={isExporting}
+            >
+              Export All
             </Button>
-            <Button size="default" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save to Library"}
+            <Button
+              size="default"
+              variant="outline"
+              className="flex-1"
+              onClick={handleImportClick}
+              disabled={isImporting}
+            >
+              Import
             </Button>
           </div>
         </div>
-      </div>
 
-      <TableGenerator
-        isOpen={isTableGeneratorOpen}
-        onClose={() => setIsTableGeneratorOpen(false)}
-        onInsert={handleInsertTable}
-      />
+        {/* Document list (mobile only) */}
+        <div className="md:hidden">
+          {filteredDocuments.length > 0 ? (
+            <div className="divide-y divide-border">
+              {filteredDocuments.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="p-4 cursor-pointer hover:bg-accent/50"
+                  onClick={() => setActiveDocument(doc)}
+                >
+                  <div className="font-medium mb-2">{doc.title}</div>
+                  {doc.summary && (
+                    <div className="text-base text-muted-foreground mb-2 leading-relaxed">{doc.summary}</div>
+                  )}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {doc.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs uppercase">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center p-8">
+              <h3 className="text-heading-3 mb-2">No documents found</h3>
+              <p className="text-body-sm mb-4">
+                {searchTerm || selectedTags.length > 0
+                  ? "Try adjusting your search or filters"
+                  : "Create your first note to get started"}
+              </p>
+            </div>
+          )}
+        </div>
 
-      <ImageInserter
-        isOpen={isImageInserterOpen}
-        onClose={() => setIsImageInserterOpen(false)}
-        onInsert={handleInsertImage}
-      />
-    </main>
+        {/* Document content (desktop and mobile) */}
+        {activeDocument ? (
+          <div className="p-6 max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-heading-1">{activeDocument.title}</h1>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {activeDocument.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="uppercase text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="default"
+                  variant="outline"
+                  className="hidden md:block"
+                  onClick={() => router.push(`/editor?id=${activeDocument.id}`)}
+                >
+                  Edit
+                </Button>
+                <Button size="default" variant="outline" onClick={handleExportPdf}>
+                  Export PDF
+                </Button>
+                <Button
+                  size="default"
+                  variant="default"
+                  className="hidden md:block"
+                  onClick={() => handleDelete(activeDocument.id)}
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+
+            {activeDocument.summary && (
+              <Card className="mb-6 card-standard">
+                <CardContent className="p-4">
+                  <h2 className="text-base font-medium mb-2">Summary</h2>
+                  <p className="text-base leading-relaxed">{activeDocument.summary}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="mb-6 card-standard">
+              <CardContent className="p-4">
+                <h2 className="text-base font-medium mb-2">Table of Contents</h2>
+                <ul className="space-y-1">
+                  {extractHeadings(activeDocument.content).map((heading, index) => (
+                    <li key={index} className="text-base">
+                      • {heading}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            <CornellNotes markdown={activeDocument.content} onNoteClick={handleNoteLinkClick} />
+
+            {/* Related Notes Section */}
+            <div className="mt-8">
+              <RelatedNotes document={activeDocument} onNoteClick={setActiveDocument} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-[calc(100vh-4rem)] md:h-screen">
+            <div className="text-center p-8">
+              <h3 className="text-heading-3 mb-2">No document selected</h3>
+              <p className="text-body-sm mb-4">
+                {filteredDocuments.length > 0
+                  ? "Select a document from the sidebar to view"
+                  : "Create your first note to get started"}
+              </p>
+              <Button size="default" className="hidden md:block" onClick={() => router.push("/editor")}>
+                Create New Note
+              </Button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
   )
 }
