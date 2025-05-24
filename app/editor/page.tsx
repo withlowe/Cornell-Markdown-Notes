@@ -15,7 +15,7 @@ import { NoteLinkInput } from "@/components/note-link-input"
 import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
 import { WysimarkEditor } from "@/components/wysimark-editor"
-import { Hash } from "lucide-react"
+import { Hash } from 'lucide-react'
 
 export default function NotesEditorPage() {
   const router = useRouter()
@@ -26,6 +26,7 @@ export default function NotesEditorPage() {
   const [markdown, setMarkdown] = useState<string>("")
   const [isTableGeneratorOpen, setIsTableGeneratorOpen] = useState(false)
   const [isImageInserterOpen, setIsImageInserterOpen] = useState(false)
+  const [isNoteLinkInputOpen, setIsNoteLinkInputOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // Check if we're editing an existing document or creating a new one with a title
@@ -113,6 +114,7 @@ Add your main ideas and concepts.`)
 
   const handleInsertNoteLink = (linkText: string) => {
     insertAtCursor(linkText)
+    setIsNoteLinkInputOpen(false)
   }
 
   // Function to insert text at cursor position
@@ -241,7 +243,16 @@ Add your main ideas and concepts.`)
                     <Button size="default" variant="outline" onClick={() => insertAtCursor("# ")}>
                       <Hash className="h-4 w-4" />
                     </Button>
-                    <NoteLinkInput onInsert={handleInsertNoteLink} />
+                    {isNoteLinkInputOpen ? (
+                      <NoteLinkInput
+                        onInsert={handleInsertNoteLink}
+                        onClose={() => setIsNoteLinkInputOpen(false)}
+                      />
+                    ) : (
+                      <Button size="default" variant="outline" onClick={() => setIsNoteLinkInputOpen(true)}>
+                        Link
+                      </Button>
+                    )}
                     <Button size="default" variant="outline" onClick={() => setIsImageInserterOpen(true)}>
                       + Image
                     </Button>

@@ -6,13 +6,14 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getNoteLinkSuggestions, noteExists } from "@/lib/link-utils"
-import { Link, Plus } from "lucide-react"
+import { Link, Plus } from 'lucide-react'
 
 interface NoteLinkInputProps {
   onInsert: (linkText: string) => void
+  onClose?: () => void
 }
 
-export function NoteLinkInput({ onInsert }: NoteLinkInputProps) {
+export function NoteLinkInput({ onInsert, onClose }: NoteLinkInputProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -31,9 +32,16 @@ export function NoteLinkInput({ onInsert }: NoteLinkInputProps) {
 
   const handleInsert = (title: string) => {
     onInsert(`[[${title}]]`)
+    handleClose()
+  }
+
+  const handleClose = () => {
     setIsOpen(false)
     setQuery("")
     setSuggestions([])
+    if (onClose) {
+      onClose()
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -51,8 +59,7 @@ export function NoteLinkInput({ onInsert }: NoteLinkInputProps) {
         handleInsert(query.trim())
       }
     } else if (e.key === "Escape") {
-      setIsOpen(false)
-      setQuery("")
+      handleClose()
     }
   }
 
@@ -77,14 +84,7 @@ export function NoteLinkInput({ onInsert }: NoteLinkInputProps) {
           className="flex-1"
           autoFocus
         />
-        <Button
-          size="default"
-          variant="outline"
-          onClick={() => {
-            setIsOpen(false)
-            setQuery("")
-          }}
-        >
+        <Button size="default" variant="outline" onClick={handleClose}>
           Cancel
         </Button>
       </div>

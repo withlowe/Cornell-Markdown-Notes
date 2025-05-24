@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf"
 import { getImage } from "./image-storage"
+import { extractNoteLinks } from "./link-utils"
 
 interface Section {
   heading: string
@@ -13,6 +14,9 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     const processedMarkdown = await processContentForExport(markdown)
 
     const sections = parseMarkdown(processedMarkdown)
+
+    // Extract all note links for the related links section
+    const noteLinks = extractNoteLinks(markdown)
 
     // Create a new PDF document with clean, minimal styling
     const doc = new jsPDF({
@@ -212,6 +216,54 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
     }
 
+    // Add related links section at the end if there are any note links
+    if (noteLinks.length > 0) {
+      // Go to the last page and check if we need a new page
+      const currentPageNum = doc.getNumberOfPages()
+      doc.setPage(currentPageNum)
+
+      // Get the current Y position from the last section
+      let currentY = y + 20 // Add some space before the related links
+
+      // Check if we have enough space for the related links section
+      const estimatedHeight = 30 + noteLinks.length * 8 // Rough estimate
+
+      if (currentY + estimatedHeight > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin + 10
+      }
+
+      // Add related links section
+      doc.setFontSize(16)
+      doc.setFont("helvetica", "bold")
+      doc.text("Related Links", margin, currentY)
+      doc.setFont("helvetica", "normal")
+
+      currentY += 10
+
+      // Draw a separator line
+      doc.setDrawColor(200, 200, 200)
+      doc.line(margin, currentY, pageWidth - margin, currentY)
+
+      currentY += 8
+
+      // List all the note links
+      doc.setFontSize(11)
+      for (let i = 0; i < noteLinks.length; i++) {
+        const link = noteLinks[i]
+
+        // Check if we need a new page
+        if (currentY + 8 > pageHeight - margin) {
+          doc.addPage()
+          currentY = margin
+        }
+
+        // Add bullet point and link text
+        doc.text(`• ${link}`, margin + 5, currentY)
+        currentY += 8
+      }
+    }
+
     // Generate the PDF as a blob
     const pdfBlob = doc.output("blob")
 
@@ -281,7 +333,7 @@ function parseMarkdown(markdown: string): Section[] {
   return sections
 }
 
-// Process content to load images from storage
+// Process content to load images from storage and clean note links
 async function processContentForExport(content: string): Promise<string> {
   let processedContent = content
 
@@ -308,6 +360,9 @@ async function processContentForExport(content: string): Promise<string> {
       }
     }
   }
+
+  // Remove [[ ]] from note links in the content for PDF display
+  processedContent = processedContent.replace(/\[\[([^\]]+)\]\]/g, "$1")
 
   return processedContent
 }
