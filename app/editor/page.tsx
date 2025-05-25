@@ -169,7 +169,7 @@ Add your main ideas and concepts.`)
     <main className="min-h-screen bg-background">
       <div className="container-standard py-8">
         <header className="flex justify-between items-center mb-8">
-          <h1 className="text-heading-1">Notes Editor</h1>
+          <h1 className="text-heading-1">Editor</h1>
           <div className="flex gap-3">
             <Button size="default" variant="ghost" onClick={() => router.push("/")}>
               Library

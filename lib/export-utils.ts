@@ -45,7 +45,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     let y = 30
     if (summary) {
       doc.setFontSize(11)
-      const summaryLineHeight = 6
+      const summaryLineHeight = 5 // Reduced from 6
       const summaryLines = doc.splitTextToSize(summary, 180)
 
       // Apply clean line spacing
@@ -94,7 +94,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       doc.setFont("helvetica", "bold")
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-      const headingLineHeight = 6
+      const headingLineHeight = 5 // Reduced from 6
       for (let i = 0; i < headingLines.length; i++) {
         doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
       }
@@ -161,7 +161,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Draw section with very light borders - minimal styling
       doc.setDrawColor(240, 240, 240)
 
-      // Draw vertical divider between key points and notes
+      // Draw vertical divider between key points and notes - but not for Related Notes
       for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
         doc.setPage(pageNum)
 
@@ -186,7 +186,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     for (let i = 0; i < sectionBoundaries.length; i++) {
       const section = sectionBoundaries[i]
 
-      // Only draw bottom line if not the last section
+      // Only draw bottom line if not the last section and not before Related Notes
       if (i < sectionBoundaries.length - 1) {
         doc.setPage(section.endPage)
         doc.setDrawColor(240, 240, 240)
@@ -208,7 +208,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         doc.setFont("helvetica", "bold")
         const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-        const headingLineHeight = 6
+        const headingLineHeight = 5 // Reduced from 6
         for (let i = 0; i < headingLines.length; i++) {
           doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
         }
@@ -226,7 +226,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       let currentY = y + 20 // Add some space before the related links
 
       // Check if we have enough space for the related links section
-      const estimatedHeight = 30 + noteLinks.length * 8 // Rough estimate
+      const estimatedHeight = 20 + noteLinks.length * 5 // Reduced from 25 + noteLinks.length * 6
 
       if (currentY + estimatedHeight > pageHeight - margin) {
         doc.addPage()
@@ -234,18 +234,18 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       }
 
       // Add related links section
-      doc.setFontSize(16)
+      doc.setFontSize(12) // Changed from 16 to 12
       doc.setFont("helvetica", "bold")
       doc.text("Related Links", margin, currentY)
       doc.setFont("helvetica", "normal")
 
-      currentY += 10
+      currentY += 8
 
       // Draw a separator line
       doc.setDrawColor(200, 200, 200)
       doc.line(margin, currentY, pageWidth - margin, currentY)
 
-      currentY += 8
+      currentY += 6
 
       // List all the note links
       doc.setFontSize(11)
@@ -253,14 +253,15 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         const link = noteLinks[i]
 
         // Check if we need a new page
-        if (currentY + 8 > pageHeight - margin) {
+        if (currentY + 5 > pageHeight - margin) {
+          // Reduced from 6
           doc.addPage()
           currentY = margin
         }
 
         // Add bullet point and link text
         doc.text(`• ${link}`, margin + 5, currentY)
-        currentY += 8
+        currentY += 5 // Reduced from 6
       }
     }
 
@@ -433,8 +434,8 @@ function renderTable(
   const columnWidth = totalWidth / columns.length
 
   // Set up table styling
-  const cellPadding = 4 // Increased cell padding
-  const rowHeight = 10 // Increased row height for better spacing
+  const cellPadding = 3 // Reduced from 4
+  const rowHeight = 8 // Reduced from 10
   let currentY = y
 
   // Check if we need a new page before starting the table
@@ -575,7 +576,7 @@ function renderTable(
         const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
 
         // Calculate vertical position for text (top-aligned)
-        const lineHeight = doc.getTextDimensions("Text").h * 1.2
+        const lineHeight = doc.getTextDimensions("Text").h * 1.1 // Reduced from 1.2
         const textY = currentY + cellPadding
 
         // Draw each line of text
@@ -601,7 +602,7 @@ function renderTable(
     }
   }
 
-  return currentY + 6 // Increased from 1.5 to 6mm for more space below tables
+  return currentY + 4 // Reduced from 6
 }
 
 // Render a list in PDF
@@ -616,7 +617,7 @@ function renderList(
   margin: number,
 ): number {
   let currentY = y
-  const lineHeight = 8 // Reduced line height
+  const lineHeight = 6 // Reduced from 8
   const indent = 5
 
   for (let index = 0; index < listItems.length; index++) {
@@ -665,7 +666,7 @@ function renderCodeBlock(
   pageHeight: number,
   margin: number,
 ): number {
-  const lineHeight = 7 // Reduced line height for code
+  const lineHeight = 5 // Reduced from 7
   let currentY = y
 
   // Check if we need a new page
@@ -717,7 +718,7 @@ function renderBlockquote(
   pageHeight: number,
   margin: number,
 ): number {
-  const lineHeight = 8 // Reduced line height
+  const lineHeight = 6 // Reduced from 8
   let currentY = y
   let startY = y
 
@@ -782,7 +783,7 @@ function renderMarkdownContent(
 ): number {
   const lines = content.split("\n")
   let currentY = y
-  const lineHeight = 8 // Standardized line height for all text
+  const lineHeight = 6 // Reduced from 8
 
   let i = 0
   while (i < lines.length) {
@@ -801,7 +802,7 @@ function renderMarkdownContent(
       doc.setTextColor(0, 0, 0)
 
       // Draw the section divider on the new page - only if we're not at the last section
-      if (sectionInfo.currentSection < sectionInfo.totalSections) {
+      if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
         // Draw the vertical divider
         doc.setDrawColor(230, 230, 230)
         doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
@@ -810,7 +811,7 @@ function renderMarkdownContent(
 
     // Skip empty lines but add spacing
     if (line.trim() === "") {
-      currentY += lineHeight / 3 // Reduced spacing for empty lines
+      currentY += lineHeight / 4 // Reduced spacing for empty lines
       i++
       continue
     }
@@ -940,7 +941,7 @@ function renderMarkdownContent(
         doc.setTextColor(0, 0, 0)
 
         // Draw the section divider on the new page - only if we're not at the last section
-        if (sectionInfo.currentSection < sectionInfo.totalSections) {
+        if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
           // Draw the vertical divider
           doc.setDrawColor(230, 230, 230)
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
@@ -953,7 +954,7 @@ function renderMarkdownContent(
     }
 
     // Add a small gap between paragraphs (reduced by half)
-    currentY += lineHeight * 0.05 // Minimal spacing between paragraphs
+    currentY += lineHeight * 0.03 // Minimal spacing between paragraphs
     i++
   }
 
@@ -974,9 +975,9 @@ async function addImagesToPdf(
   sectionInfo: { currentSection: number; totalSections: number },
 ): Promise<number> {
   let currentY = y
-  const imageMargin = 6 // Reduced space between images
+  const imageMargin = 4 // Reduced from 6
   const maxImageHeight = 60 // Maximum height for images in the PDF
-  const lineHeight = 8 // Standardized line height for text
+  const lineHeight = 6 // Reduced from 8
 
   // Extract all image URLs (both markdown and HTML)
   const htmlImageRegex = /<img.*?src=["'](.*?)["'].*?>/g
@@ -1022,7 +1023,7 @@ async function addImagesToPdf(
         doc.setTextColor(0, 0, 0)
 
         // Draw the section divider on the new page - only if we're not at the last section
-        if (sectionInfo.currentSection < sectionInfo.totalSections) {
+        if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
           // Draw the vertical divider
           doc.setDrawColor(230, 230, 230)
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
@@ -1089,7 +1090,7 @@ async function addImagesToPdf(
                 currentY = margin
 
                 // Draw the section divider on the new page - only if we're not at the last section
-                if (sectionInfo.currentSection < sectionInfo.totalSections) {
+                if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
                   // Draw the vertical divider
                   doc.setDrawColor(230, 230, 230)
                   doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
@@ -1104,10 +1105,10 @@ async function addImagesToPdf(
               if (image.alt) {
                 doc.setFontSize(11) // Standardized font size for all text
                 doc.setTextColor(100, 100, 100)
-                const captionY = currentY + finalHeight + 3 // Reduced spacing before caption
+                const captionY = currentY + finalHeight + 2 // Reduced spacing before caption
 
                 // Check if caption needs a new page
-                if (captionY + 8 > pageHeight - margin) {
+                if (captionY + 6 > pageHeight - margin) {
                   // Store current page number before adding a new page
                   const currentPage = doc.getCurrentPageInfo().pageNumber
 
@@ -1119,7 +1120,7 @@ async function addImagesToPdf(
                   doc.setTextColor(0, 0, 0)
 
                   // Draw the section divider on the new page - only if we're not at the last section
-                  if (sectionInfo.currentSection < sectionInfo.totalSections) {
+                  if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
                     // Draw the vertical divider
                     doc.setDrawColor(230, 230, 230)
                     doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
@@ -1184,7 +1185,7 @@ async function addImagesToPdf(
               currentY = margin
 
               // Draw the section divider on the new page - only if we're not at the last section
-              if (sectionInfo.currentSection < sectionInfo.totalSections) {
+              if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
                 // Draw the vertical divider
                 doc.setDrawColor(230, 230, 230)
                 doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
@@ -1199,10 +1200,10 @@ async function addImagesToPdf(
             if (image.alt) {
               doc.setFontSize(11) // Standardized font size for all text
               doc.setTextColor(100, 100, 100)
-              const captionY = currentY + finalHeight + 3 // Reduced spacing before caption
+              const captionY = currentY + finalHeight + 2 // Reduced spacing before caption
 
               // Check if caption needs a new page
-              if (captionY + 8 > pageHeight - margin) {
+              if (captionY + 6 > pageHeight - margin) {
                 // Store current page number before adding a new page
                 const currentPage = doc.getCurrentPageInfo().pageNumber
 
@@ -1214,7 +1215,7 @@ async function addImagesToPdf(
                 doc.setTextColor(0, 0, 0)
 
                 // Draw the section divider on the new page - only if we're not at the last section
-                if (sectionInfo.currentSection < sectionInfo.totalSections) {
+                if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
                   // Draw the vertical divider
                   doc.setDrawColor(230, 230, 230)
                   doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)

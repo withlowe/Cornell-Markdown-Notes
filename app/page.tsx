@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,32 +23,93 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { exportToPdf } from "@/lib/export-utils"
-import { ChevronDown, SortAsc, SortDesc } from "lucide-react"
+import { ChevronDown, Search, X, Tag } from "lucide-react"
 
 export default function LibraryPage() {
   const router = useRouter()
-  const [documents, setDocuments] = useState<DocumentData[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [allTags, setAllTags] = useState<string[]>([])
+  const [allDocuments, setAllDocuments] = useState<DocumentData[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterTags, setFilterTags] = useState<string[]>([])
   const [activeDocument, setActiveDocument] = useState<DocumentData | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [sortBy, setSortBy] = useState<"date" | "title" | "tags">("date")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  // Compute filtered documents directly during render
+  const filteredDocuments = useMemo(() => {
+    if (allDocuments.length === 0) {
+      return []
+    }
 
+    let result = [...allDocuments]
+
+    // Apply search filter (title, summary, and tags)
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase()
+
+      result = result.filter((doc) => {
+        const titleMatch = doc.title.toLowerCase().includes(query)
+        const summaryMatch = doc.summary?.toLowerCase().includes(query) || false
+        const tagMatch = doc.tags.some((tag) => tag.toLowerCase().includes(query))
+        return titleMatch || summaryMatch || tagMatch
+      })
+    }
+
+    // Apply tag filter
+    if (filterTags.length > 0) {
+      result = result.filter((doc) => {
+        return filterTags.every((tag) => doc.tags.includes(tag))
+      })
+    }
+
+    // Sort by creation date (newest first) - default sorting only
+    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+    return result
+  }, [allDocuments, searchQuery, filterTags])
+
+  // Get all available tags
+  const availableTags = useMemo(() => {
+    const tags = allDocuments.flatMap((doc) => doc.tags)
+    return [...new Set(tags)].sort()
+  }, [allDocuments])
+
+  // Load documents on mount
   useEffect(() => {
-    loadDocuments()
+    const docs = getAllDocuments()
+    setAllDocuments(docs)
+
+    // Set first document as active if none selected
+    if (docs.length > 0 && !activeDocument) {
+      setActiveDocument(docs[0])
+    }
   }, [])
 
-  const loadDocuments = () => {
-    const docs = getAllDocuments()
-    setDocuments(docs)
+  const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchQuery(value)
+  }
 
-    const tags = docs.flatMap((doc) => doc.tags)
-    setAllTags([...new Set(tags)])
+  const handleTagSelect = (tag: string) => {
+    setFilterTags((prev) => {
+      const isSelected = prev.includes(tag)
+      const newTags = isSelected ? prev.filter((t) => t !== tag) : [...prev, tag]
+      return newTags
+    })
+  }
+
+  const clearSearch = () => {
+    setSearchQuery("")
+  }
+
+  const clearAllFilters = () => {
+    setSearchQuery("")
+    setFilterTags([])
+  }
+
+  const reloadDocuments = () => {
+    const docs = getAllDocuments()
+    setAllDocuments(docs)
 
     if (docs.length > 0 && !activeDocument) {
       setActiveDocument(docs[0])
@@ -59,73 +120,26 @@ export default function LibraryPage() {
     deleteDocument(id)
 
     if (activeDocument && activeDocument.id === id) {
-      const remainingDocs = documents.filter((doc) => doc.id !== id)
-      setActiveDocument(remainingDocs.length > 0 ? remainingDocs[0] : null)
+      const remaining = allDocuments.filter((doc) => doc.id !== id)
+      setActiveDocument(remaining.length > 0 ? remaining[0] : null)
     }
 
-    loadDocuments()
-
-    console.log("Document deleted from library")
-  }
-
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
-  }
-
-  const filteredDocuments = documents
-    .filter((doc) => {
-      const matchesSearch =
-        searchTerm === "" ||
-        doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (doc.summary && doc.summary.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        doc.content.toLowerCase().includes(searchTerm.toLowerCase())
-
-      const matchesTags = selectedTags.length === 0 || selectedTags.every((tag) => doc.tags.includes(tag))
-
-      return matchesSearch && matchesTags
-    })
-    .sort((a, b) => {
-      if (sortBy === "date") {
-        const dateA = new Date(a.createdAt).getTime()
-        const dateB = new Date(b.createdAt).getTime()
-        return sortDirection === "asc" ? dateA - dateB : dateB - dateA
-      } else if (sortBy === "title") {
-        return sortDirection === "asc" ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title)
-      } else if (sortBy === "tags") {
-        const tagA = a.tags.length > 0 ? a.tags[0] : ""
-        const tagB = b.tags.length > 0 ? b.tags[0] : ""
-        return sortDirection === "asc" ? tagA.localeCompare(tagB) : tagB.localeCompare(tagA)
-      }
-      return 0
-    })
-
-  const extractHeadings = (content: string): string[] => {
-    const headings: string[] = []
-    const lines = content.split("\n")
-
-    lines.forEach((line) => {
-      if (line.startsWith("# ")) {
-        headings.push(line.substring(2))
-      }
-    })
-
-    return headings
+    reloadDocuments()
   }
 
   const handleExportAll = async () => {
-    if (documents.length === 0) {
-      alert("No documents to export. Create some notes first before exporting.")
+    if (allDocuments.length === 0) {
+      alert("No documents to export.")
       return
     }
 
     setIsExporting(true)
     try {
       await exportAllToZip()
-      console.log(`Exported ${documents.length} notes as markdown files`)
-      alert(`Successfully exported ${documents.length} notes as markdown files`)
+      alert(`Successfully exported ${allDocuments.length} notes`)
     } catch (error) {
       console.error("Export failed:", error)
-      alert(`Export failed: ${error instanceof Error ? error.message : "Unknown error occurred"}`)
+      alert(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
       setIsExporting(false)
     }
@@ -142,12 +156,11 @@ export default function LibraryPage() {
     setIsImporting(true)
     try {
       const count = await importMarkdownFiles(files)
-      loadDocuments()
-      console.log(`Imported ${count} markdown files`)
-      alert(`Successfully imported ${count} markdown files`)
+      reloadDocuments()
+      alert(`Successfully imported ${count} files`)
     } catch (error) {
       console.error("Import failed:", error)
-      alert(`Import failed: ${error instanceof Error ? error.message : "Unknown error occurred"}`)
+      alert(`Import failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
       setIsImporting(false)
       if (fileInputRef.current) {
@@ -158,13 +171,12 @@ export default function LibraryPage() {
 
   const handleExportPdf = async () => {
     if (!activeDocument) {
-      alert("Please select a document to export as PDF.")
+      alert("Please select a document to export.")
       return
     }
 
     try {
       await exportToPdf(activeDocument.title, activeDocument.summary || "", activeDocument.content)
-      console.log("PDF exported successfully")
       alert(`Successfully exported "${activeDocument.title}" as PDF`)
     } catch (error) {
       console.error("PDF export failed:", error)
@@ -172,441 +184,306 @@ export default function LibraryPage() {
     }
   }
 
-  // Handle note link clicks - improved with better logging and error handling
   const handleNoteLinkClick = (title: string) => {
-    console.log("Note link clicked:", title)
+    const linkedDoc = allDocuments.find((doc) => doc.title.toLowerCase() === title.toLowerCase())
 
-    try {
-      const linkedDoc = documents.find((doc) => doc.title.toLowerCase() === title.toLowerCase())
-
-      if (linkedDoc) {
-        console.log("Found existing document:", linkedDoc.title)
-        setActiveDocument(linkedDoc)
-      } else {
-        console.log("Document not found, creating new note with title:", title)
-        // If note doesn't exist, navigate to editor to create it
-        const encodedTitle = encodeURIComponent(title)
-        console.log("Navigating to editor with title:", encodedTitle)
-        router.push(`/editor?title=${encodedTitle}`)
-      }
-    } catch (error) {
-      console.error("Error handling note link click:", error)
-      // Fallback: still try to navigate to editor
+    if (linkedDoc) {
+      setActiveDocument(linkedDoc)
+    } else {
       router.push(`/editor?title=${encodeURIComponent(title)}`)
     }
   }
 
+  const handleDocumentSelect = (doc: DocumentData) => {
+    setActiveDocument(doc)
+
+    // Check if we're on mobile (lg breakpoint and below)
+    const isMobile = window.innerWidth < 1024
+
+    if (isMobile) {
+      // On mobile, scroll to the document title in the main content area
+      // Use setTimeout to ensure the document has been rendered first
+      setTimeout(() => {
+        const documentTitle = document.querySelector("main h1")
+        if (documentTitle) {
+          documentTitle.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      }, 100)
+    } else {
+      // On desktop, scroll to top of page
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
+  }
+
+  const extractHeadings = (content: string): { text: string; id: string }[] => {
+    return content
+      .split("\n")
+      .filter((line) => line.startsWith("# "))
+      .map((line) => {
+        const text = line.substring(2)
+        const id = text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+        return { text, id }
+      })
+  }
+
+  const handleHeadingClick = (headingId: string) => {
+    const element = document.getElementById(headingId)
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }
+
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      {/* Documentation-style sidebar - wider now */}
-      <aside className="hidden md:flex w-80 flex-col border-r border-border min-h-screen">
-        <div className="p-4 border-b border-border flex flex-col gap-3">
-          <Link href="/" className="font-medium text-lg">
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Header */}
+      <header className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-border sticky top-0 z-10 bg-background gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+          <Link href="/" className="font-medium text-lg whitespace-nowrap">
             Notes
           </Link>
-          <Button size="default" className="w-full hidden md:block" onClick={() => router.push("/editor")}>
+
+          {/* Search Input - responsive width */}
+          <div className="relative flex-1 max-w-xs sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              className="pl-10 pr-8 w-full text-sm h-10"
+              value={searchQuery}
+              onChange={handleSearchInput}
+            />
+            {searchQuery && (
+              <button onClick={clearSearch} className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Tag Filter Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="default" className="gap-2 h-10">
+                <Tag className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {filterTags.length > 0 ? `${filterTags.length} tag${filterTags.length > 1 ? "s" : ""}` : "Tags"}
+                </span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 max-h-80 overflow-y-auto">
+              <DropdownMenuLabel>Filter by Tags</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {availableTags.length > 0 ? (
+                availableTags.map((tag) => (
+                  <DropdownMenuCheckboxItem
+                    key={tag}
+                    checked={filterTags.includes(tag)}
+                    onCheckedChange={() => handleTagSelect(tag)}
+                    className="uppercase"
+                  >
+                    {tag}
+                  </DropdownMenuCheckboxItem>
+                ))
+              ) : (
+                <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Clear Filters */}
+          {(searchQuery || filterTags.length > 0) && (
+            <Button variant="ghost" size="default" onClick={clearAllFilters} className="whitespace-nowrap h-10">
+              <span className="hidden sm:inline">Clear all</span>
+              <span className="sm:hidden">Clear</span>
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 sm:gap-4">
+          {/* New Note button - hidden on mobile */}
+          <Button
+            size="default"
+            onClick={() => router.push("/editor")}
+            className="whitespace-nowrap h-10 hidden md:flex"
+          >
             New Note
           </Button>
         </div>
+      </header>
 
-        <div className="p-4">
-          <div className="relative mb-4">
-            <Input
-              placeholder="Search notes..."
-              className="input-standard"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
-            <div className="flex items-center justify-between font-medium mb-2 text-sm">
-              <div>Sort By</div>
-            </div>
-            <div className="flex gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="flex-1 justify-between">
-                    {sortBy === "date" ? "Date" : sortBy === "title" ? "Title" : "Tags"}
-                    <ChevronDown className="h-4 w-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setSortBy("date")}>Date {sortBy === "date" && "✓"}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("title")}>
-                    Title {sortBy === "title" && "✓"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("tags")}>Tags {sortBy === "tags" && "✓"}</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-10 p-0 flex-shrink-0"
-                onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
-                title={sortDirection === "asc" ? "Ascending" : "Descending"}
-              >
-                {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
-              </Button>
+      {/* Active filters display - scrollable on mobile */}
+      {filterTags.length > 0 && (
+        <div className="w-full px-4 py-2 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Filtered by:</span>
+            <div className="flex gap-2 min-w-0">
+              {filterTags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs uppercase whitespace-nowrap flex-shrink-0">
+                  {tag}
+                  <button className="ml-1 hover:text-destructive" onClick={() => handleTagSelect(tag)}>
+                    ×
+                  </button>
+                </Badge>
+              ))}
             </div>
           </div>
+        </div>
+      )}
 
-          <div className="mb-4">
-            <div className="flex items-center justify-between font-medium mb-2 text-sm">
-              <div>Filter by Tags</div>
-              {selectedTags.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => setSelectedTags([])} className="h-7 px-2 text-xs">
-                  Clear
-                </Button>
+      {/* Main content - responsive layout */}
+      <div className="flex flex-col lg:flex-row">
+        {/* Sidebar - stretches with content */}
+        <aside className="w-full lg:w-96 xl:w-1/4 border-b lg:border-b-0 lg:border-r border-border bg-background">
+          <div className="p-4">
+            <div className="text-sm font-medium text-muted-foreground mb-4">
+              Documents ({filteredDocuments.length}
+              {allDocuments.length !== filteredDocuments.length && ` of ${allDocuments.length}`})
+            </div>
+
+            <div className="space-y-2">
+              {filteredDocuments.length === 0 ? (
+                <div className="text-xs text-muted-foreground p-3 text-center">
+                  {searchQuery || filterTags.length > 0 ? "No matching documents found" : "No documents available"}
+                </div>
+              ) : (
+                filteredDocuments.map((doc, index) => (
+                  <button
+                    key={`${doc.id}-${index}`}
+                    className={cn(
+                      "w-full text-left px-3 py-3 text-sm rounded-md transition-colors",
+                      activeDocument?.id === doc.id
+                        ? "bg-accent text-accent-foreground font-medium"
+                        : "hover:bg-accent/50",
+                    )}
+                    onClick={() => handleDocumentSelect(doc)}
+                  >
+                    <div className="line-clamp-1 font-medium">{doc.title}</div>
+                    {doc.summary && (
+                      <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.summary}</div>
+                    )}
+                    {doc.tags.length > 0 && (
+                      <div className="flex gap-1 mt-2 overflow-x-auto">
+                        {doc.tags.slice(0, 3).map((tag) => (
+                          <Badge key={tag} variant="outline" className="text-xs uppercase px-1 py-0 flex-shrink-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {doc.tags.length > 3 && (
+                          <Badge variant="outline" className="text-xs px-1 py-0 flex-shrink-0">
+                            +{doc.tags.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                ))
               )}
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="default" variant="outline" className="w-full justify-between">
-                  {selectedTags.length > 0
-                    ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
-                    : "Select tags"}
+            <div className="mt-6 pt-4 border-t border-border space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" onClick={handleExportAll} disabled={isExporting}>
+                  {isExporting ? "Exporting..." : "Export All"}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 max-h-80 overflow-auto">
-                <DropdownMenuLabel>Available Tags</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {allTags.length > 0 ? (
-                  allTags.map((tag) => (
-                    <DropdownMenuCheckboxItem
-                      key={tag}
-                      checked={selectedTags.includes(tag)}
-                      onCheckedChange={() => toggleTag(tag)}
-                      className="uppercase"
-                    >
-                      {tag}
-                    </DropdownMenuCheckboxItem>
-                  ))
-                ) : (
-                  <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {selectedTags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {selectedTags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="uppercase text-xs">
-                    {tag}
-                    <button className="ml-1 text-xs" onClick={() => toggleTag(tag)}>
-                      ×
-                    </button>
-                  </Badge>
-                ))}
+                <Button variant="outline" size="sm" onClick={handleImportClick} disabled={isImporting}>
+                  {isImporting ? "Importing..." : "Import"}
+                </Button>
               </div>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <div className="font-medium mb-2 text-sm">Documents</div>
-            {filteredDocuments.length > 0 ? (
-              filteredDocuments.map((doc) => (
-                <button
-                  key={doc.id}
-                  className={cn(
-                    "w-full text-left px-3 py-2 text-sm rounded-md",
-                    activeDocument?.id === doc.id
-                      ? "bg-accent text-accent-foreground font-medium"
-                      : "hover:bg-accent/50",
-                  )}
-                  onClick={() => setActiveDocument(doc)}
-                >
-                  <div className="line-clamp-1">{doc.title}</div>
-                </button>
-              ))
-            ) : (
-              <div className="text-xs text-muted-foreground">No documents found</div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-auto p-4 border-t border-border flex flex-col gap-3">
-          <div className="flex gap-2">
-            <Button
-              size="default"
-              variant="outline"
-              className="flex-1"
-              onClick={handleExportAll}
-              disabled={isExporting}
-            >
-              Export All
-            </Button>
-            <Button
-              size="default"
-              variant="outline"
-              className="flex-1"
-              onClick={handleImportClick}
-              disabled={isImporting}
-            >
-              Import
-            </Button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImportFiles}
-              accept=".md"
-              multiple
-              className="hidden"
-            />
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content area */}
-      <main className="flex-1 overflow-auto bg-background">
-        {/* Mobile header */}
-        <header className="md:hidden flex items-center justify-between p-4 border-b border-border">
-          <Link href="/" className="font-medium">
-            Notes
-          </Link>
-          <div className="flex gap-2">
-            <Button size="default" variant="outline" onClick={() => router.push("/editor")}>
-              New Note
-            </Button>
-          </div>
-        </header>
-
-        {/* Mobile search and filters */}
-        <div className="md:hidden p-4 border-b border-border">
-          <div className="relative mb-4">
-            <Input
-              placeholder="Search notes..."
-              className="input-standard"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="mb-4">
-            <div className="flex items-center justify-between font-medium mb-2 text-sm">
-              <div>Sort By</div>
-            </div>
-            <div className="flex gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="flex-1 justify-between">
-                    {sortBy === "date" ? "Date" : sortBy === "title" ? "Title" : "Tags"}
-                    <ChevronDown className="h-4 w-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setSortBy("date")}>Date {sortBy === "date" && "✓"}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("title")}>
-                    Title {sortBy === "title" && "✓"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("tags")}>Tags {sortBy === "tags" && "✓"}</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-10 p-0 flex-shrink-0"
-                onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
-                title={sortDirection === "asc" ? "Ascending" : "Descending"}
-              >
-                {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
-              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImportFiles}
+                accept=".md"
+                multiple
+                className="hidden"
+              />
             </div>
           </div>
+        </aside>
 
-          <div className="mb-4">
-            <div className="flex items-center justify-between font-medium mb-2 text-sm">
-              <div>Filter by Tags</div>
-              {selectedTags.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => setSelectedTags([])} className="h-7 px-2 text-xs">
-                  Clear
-                </Button>
-              )}
-            </div>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="default" variant="outline" className="w-full justify-between">
-                  {selectedTags.length > 0
-                    ? `${selectedTags.length} tag${selectedTags.length > 1 ? "s" : ""} selected`
-                    : "Select tags"}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 max-h-80 overflow-auto">
-                <DropdownMenuLabel>Available Tags</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {allTags.length > 0 ? (
-                  allTags.map((tag) => (
-                    <DropdownMenuCheckboxItem
-                      key={tag}
-                      checked={selectedTags.includes(tag)}
-                      onCheckedChange={() => toggleTag(tag)}
-                      className="uppercase"
-                    >
-                      {tag}
-                    </DropdownMenuCheckboxItem>
-                  ))
-                ) : (
-                  <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {selectedTags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {selectedTags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="uppercase text-xs">
-                    {tag}
-                    <button className="ml-1 text-xs" onClick={() => toggleTag(tag)}>
-                      ×
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-2 mt-4">
-            <Button
-              size="default"
-              variant="outline"
-              className="flex-1"
-              onClick={handleExportAll}
-              disabled={isExporting}
-            >
-              Export All
-            </Button>
-            <Button
-              size="default"
-              variant="outline"
-              className="flex-1"
-              onClick={handleImportClick}
-              disabled={isImporting}
-            >
-              Import
-            </Button>
-          </div>
-        </div>
-
-        {/* Document list (mobile only) */}
-        <div className="md:hidden">
-          {filteredDocuments.length > 0 ? (
-            <div className="divide-y divide-border">
-              {filteredDocuments.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="p-4 cursor-pointer hover:bg-accent/50"
-                  onClick={() => setActiveDocument(doc)}
-                >
-                  <div className="font-medium mb-2">{doc.title}</div>
-                  {doc.summary && (
-                    <div className="text-base text-muted-foreground mb-2 leading-relaxed">{doc.summary}</div>
-                  )}
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {doc.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs uppercase">
+        {/* Main content area - stretches with content */}
+        <main className="flex-1 bg-background">
+          {/* Document viewer */}
+          {activeDocument ? (
+            <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+              <div className="flex items-start justify-between mb-6 gap-4">
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-2xl sm:text-3xl font-bold mb-3 break-words">{activeDocument.title}</h1>
+                  <div className="flex flex-wrap gap-1 overflow-x-auto">
+                    {activeDocument.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs uppercase flex-shrink-0">
                         {tag}
                       </Badge>
                     ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center p-8">
-              <h3 className="text-heading-3 mb-2">No documents found</h3>
-              <p className="text-body-sm mb-4">
-                {searchTerm || selectedTags.length > 0
-                  ? "Try adjusting your search or filters"
-                  : "Create your first note to get started"}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Document content (desktop and mobile) */}
-        {activeDocument ? (
-          <div className="p-6 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-heading-1">{activeDocument.title}</h1>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {activeDocument.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="uppercase text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
+                {/* Action buttons - hidden on mobile */}
+                <div className="hidden md:flex gap-2 flex-shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/editor?id=${activeDocument.id}`)}>
+                    Edit
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleExportPdf}>
+                    Export PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(activeDocument.id)}
+                    className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    Delete
+                  </Button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  size="default"
-                  variant="outline"
-                  className="hidden md:block"
-                  onClick={() => router.push(`/editor?id=${activeDocument.id}`)}
-                >
-                  Edit
-                </Button>
-                <Button size="default" variant="outline" onClick={handleExportPdf}>
-                  Export PDF
-                </Button>
-                <Button
-                  size="default"
-                  variant="default"
-                  className="hidden md:block"
-                  onClick={() => handleDelete(activeDocument.id)}
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
 
-            {activeDocument.summary && (
-              <Card className="mb-6 card-standard">
+              {activeDocument.summary && (
+                <Card className="mb-6">
+                  <CardContent className="p-4">
+                    <h2 className="text-sm font-medium text-muted-foreground mb-2">Summary</h2>
+                    <p className="text-sm leading-relaxed">{activeDocument.summary}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card className="mb-6">
                 <CardContent className="p-4">
-                  <h2 className="text-base font-medium mb-2">Summary</h2>
-                  <p className="text-base leading-relaxed">{activeDocument.summary}</p>
+                  <h2 className="text-sm font-medium text-muted-foreground mb-3">Table of Contents</h2>
+                  <ul className="space-y-2 text-sm">
+                    {extractHeadings(activeDocument.content).map((heading, index) => (
+                      <li key={index}>
+                        <button
+                          onClick={() => handleHeadingClick(heading.id)}
+                          className="text-left hover:text-primary hover:underline transition-colors"
+                        >
+                          • {heading.text}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </CardContent>
               </Card>
-            )}
 
-            <Card className="mb-6 card-standard">
-              <CardContent className="p-4">
-                <h2 className="text-base font-medium mb-2">Table of Contents</h2>
-                <ul className="space-y-1">
-                  {extractHeadings(activeDocument.content).map((heading, index) => (
-                    <li key={index} className="text-base">
-                      • {heading}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+              <div className="mb-8">
+                <CornellNotes markdown={activeDocument.content} onNoteClick={handleNoteLinkClick} />
+              </div>
 
-            <CornellNotes markdown={activeDocument.content} onNoteClick={handleNoteLinkClick} />
-
-            {/* Related Notes Section */}
-            <div className="mt-8">
               <RelatedNotes document={activeDocument} onNoteClick={setActiveDocument} />
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-[calc(100vh-4rem)] md:h-screen">
-            <div className="text-center p-8">
-              <h3 className="text-heading-3 mb-2">No document selected</h3>
-              <p className="text-body-sm mb-4">
-                {filteredDocuments.length > 0
-                  ? "Select a document from the sidebar to view"
-                  : "Create your first note to get started"}
-              </p>
-              <Button size="default" className="hidden md:block" onClick={() => router.push("/editor")}>
-                Create New Note
-              </Button>
+          ) : (
+            <div className="flex items-center justify-center min-h-[60vh] p-8">
+              <div className="text-center">
+                <h3 className="text-lg font-medium mb-2">No document selected</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {filteredDocuments.length > 0 ? "Select a document to view" : "Create your first note to get started"}
+                </p>
+                <Button onClick={() => router.push("/editor")}>Create New Note</Button>
+              </div>
             </div>
-          </div>
-        )}
-      </main>
+          )}
+        </main>
+      </div>
     </div>
   )
 }

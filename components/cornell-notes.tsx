@@ -16,6 +16,7 @@ interface CornellNotesProps {
 interface Section {
   heading: string
   content: string
+  id: string
 }
 
 export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
@@ -83,9 +84,14 @@ export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
       if (line.startsWith("# ")) {
         // If we already have a heading, save the previous section
         if (currentHeading) {
+          const id = currentHeading
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")
           sections.push({
             heading: currentHeading,
             content: currentContent.join("\n"),
+            id,
           })
         }
 
@@ -100,9 +106,14 @@ export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
 
     // Add the last section
     if (currentHeading) {
+      const id = currentHeading
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
       sections.push({
         heading: currentHeading,
         content: currentContent.join("\n"),
+        id,
       })
     }
 
@@ -156,7 +167,9 @@ export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
                 index % 2 === 0 ? "bg-muted/30" : "bg-background"
               }`}
             >
-              <div className="pt-[2px]">{section.heading}</div>
+              <div className="pt-[2px]" id={section.id}>
+                {section.heading}
+              </div>
 
               {/* Right border that visually connects to the content */}
               <div className="absolute right-0 top-0 bottom-0 w-[1px] bg-border"></div>
