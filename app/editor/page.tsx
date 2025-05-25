@@ -261,6 +261,9 @@ Add your main ideas and concepts.`)
                     </Button>
                   </div>
                 </div>
+                <div className="mt-3 text-caption">
+                  Use markdown headings (#) for key points. Link to other notes with [[Note Title]].
+                </div>
                 <div className="flex-1 min-h-0 flex flex-col">
                   <WysimarkEditor
                     value={markdown}
@@ -269,9 +272,7 @@ Add your main ideas and concepts.`)
                     className="flex-1 min-h-0"
                   />
                 </div>
-                <div className="mt-3 text-caption">
-                  Use markdown headings (#) for key points. Link to other notes with [[Note Title]].
-                </div>
+                
               </CardContent>
             </Card>
 
