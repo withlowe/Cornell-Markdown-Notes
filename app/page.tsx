@@ -117,6 +117,15 @@ export default function LibraryPage() {
   }
 
   const handleDelete = (id: string) => {
+    const docToDelete = allDocuments.find((doc) => doc.id === id)
+    const docTitle = docToDelete ? docToDelete.title : "this document"
+
+    const confirmed = window.confirm(`Are you sure you want to delete "${docTitle}"?\n\nThis action cannot be undone.`)
+
+    if (!confirmed) {
+      return
+    }
+
     deleteDocument(id)
 
     if (activeDocument && activeDocument.id === id) {

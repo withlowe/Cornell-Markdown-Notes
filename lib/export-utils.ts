@@ -236,14 +236,10 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       // Add related links section
       doc.setFontSize(12) // Changed from 16 to 12
       doc.setFont("helvetica", "bold")
-      doc.text("Related Links", margin, currentY)
+      doc.text("Related Notes", margin, currentY)
       doc.setFont("helvetica", "normal")
 
       currentY += 8
-
-      // Draw a separator line
-      doc.setDrawColor(200, 200, 200)
-      doc.line(margin, currentY, pageWidth - margin, currentY)
 
       currentY += 6
 
@@ -1097,53 +1093,25 @@ async function addImagesToPdf(
                 }
               }
 
-              // Add the image to the PDF with the correct dimensions
-              doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
-              console.log("Added image to PDF successfully")
-
               // Add caption if there's alt text
               if (image.alt) {
-                doc.setFontSize(11) // Standardized font size for all text
-                doc.setTextColor(100, 100, 100)
-                const captionY = currentY + finalHeight + 2 // Reduced spacing before caption
-
-                // Check if caption needs a new page
-                if (captionY + 6 > pageHeight - margin) {
-                  // Store current page number before adding a new page
-                  const currentPage = doc.getCurrentPageInfo().pageNumber
-
-                  doc.addPage()
-                  currentY = margin
-
-                  // Reset text properties
-                  doc.setFontSize(11) // Standardized font size for all text
-                  doc.setTextColor(0, 0, 0)
-
-                  // Draw the section divider on the new page - only if we're not at the last section
-                  if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
-                    // Draw the vertical divider
-                    doc.setDrawColor(230, 230, 230)
-                    doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
-                  }
-
-                  // Re-add the image on the new page
-                  doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
-                }
-
-                // Set caption font properties
-                doc.setFontSize(11) // Standardized font size for all text
+                doc.setFontSize(11)
                 doc.setTextColor(100, 100, 100)
 
-                // Draw the caption
+                // Draw the caption ABOVE the image
                 const captionLines = doc.splitTextToSize(image.alt, maxWidth)
                 captionLines.forEach((captionLine) => {
                   doc.text(captionLine, x, currentY + 1.5)
                   currentY += lineHeight
                 })
+
+                // Add small spacing after caption
+                currentY += 2
               }
 
-              // Reset text color
-              doc.setTextColor(0, 0, 0)
+              // Add the image to the PDF with the correct dimensions
+              doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
+              console.log("Added image to PDF successfully")
 
               // Move to the next position
               currentY += finalHeight + imageMargin
@@ -1192,53 +1160,25 @@ async function addImagesToPdf(
               }
             }
 
-            // Add the image to the PDF with the correct dimensions
-            doc.addImage(img, "JPEG", x, currentY, finalWidth, finalHeight, undefined, "FAST")
-            console.log("Added image to PDF successfully")
-
             // Add caption if there's alt text
             if (image.alt) {
-              doc.setFontSize(11) // Standardized font size for all text
-              doc.setTextColor(100, 100, 100)
-              const captionY = currentY + finalHeight + 2 // Reduced spacing before caption
-
-              // Check if caption needs a new page
-              if (captionY + 6 > pageHeight - margin) {
-                // Store current page number before adding a new page
-                const currentPage = doc.getCurrentPageInfo().pageNumber
-
-                doc.addPage()
-                currentY = margin
-
-                // Reset text properties
-                doc.setFontSize(11) // Standardized font size for all text
-                doc.setTextColor(0, 0, 0)
-
-                // Draw the section divider on the new page - only if we're not at the last section
-                if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
-                  // Draw the vertical divider
-                  doc.setDrawColor(230, 230, 230)
-                  doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
-                }
-
-                // Re-add the image on the new page
-                doc.addImage(img, "JPEG", x, currentY, finalWidth, finalHeight, undefined, "FAST")
-              }
-
-              // Set caption font properties
-              doc.setFontSize(11) // Standardized font size for all text
+              doc.setFontSize(11)
               doc.setTextColor(100, 100, 100)
 
-              // Draw the caption
+              // Draw the caption ABOVE the image
               const captionLines = doc.splitTextToSize(image.alt, maxWidth)
               captionLines.forEach((captionLine) => {
                 doc.text(captionLine, x, currentY + 1.5)
                 currentY += lineHeight
               })
+
+              // Add small spacing after caption
+              currentY += 2
             }
 
-            // Reset text color
-            doc.setTextColor(0, 0, 0)
+            // Add the image to the PDF with the correct dimensions
+            doc.addImage(img, "JPEG", x, currentY, finalWidth, finalHeight, undefined, "FAST")
+            console.log("Added image to PDF successfully")
 
             // Move to the next position
             currentY += finalHeight + imageMargin
