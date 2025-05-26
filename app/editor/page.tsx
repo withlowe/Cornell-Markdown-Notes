@@ -15,7 +15,7 @@ import { NoteLinkInput } from "@/components/note-link-input"
 import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
 import { WysimarkEditor } from "@/components/wysimark-editor"
-import { Hash } from 'lucide-react'
+import { Hash } from "lucide-react"
 
 export default function NotesEditorPage() {
   const router = useRouter()
@@ -84,6 +84,9 @@ Add your main ideas and concepts.`)
       setId(docId)
 
       console.log("Document saved to library")
+
+      // Navigate to library view with the saved document
+      router.push(`/?doc=${docId}`)
     } catch (error) {
       console.error("Save failed:", error)
       alert("There was an error saving your note. Please try again.")
@@ -244,10 +247,7 @@ Add your main ideas and concepts.`)
                       <Hash className="h-4 w-4" />
                     </Button>
                     {isNoteLinkInputOpen ? (
-                      <NoteLinkInput
-                        onInsert={handleInsertNoteLink}
-                        onClose={() => setIsNoteLinkInputOpen(false)}
-                      />
+                      <NoteLinkInput onInsert={handleInsertNoteLink} onClose={() => setIsNoteLinkInputOpen(false)} />
                     ) : (
                       <Button size="default" variant="outline" onClick={() => setIsNoteLinkInputOpen(true)}>
                         Link
@@ -261,9 +261,6 @@ Add your main ideas and concepts.`)
                     </Button>
                   </div>
                 </div>
-                <div className="mb-3 text-caption">
-                  Use markdown headings (#) for key points. Enter notes on a separate line. Link to other notes with [[Note Title]].
-                </div>
                 <div className="flex-1 min-h-0 flex flex-col">
                   <WysimarkEditor
                     value={markdown}
@@ -272,7 +269,9 @@ Add your main ideas and concepts.`)
                     className="flex-1 min-h-0"
                   />
                 </div>
-                
+                <div className="mt-3 text-caption">
+                  Use markdown headings (#) for key points. Link to other notes with [[Note Title]].
+                </div>
               </CardContent>
             </Card>
 

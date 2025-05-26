@@ -79,11 +79,36 @@ export default function LibraryPage() {
     const docs = getAllDocuments()
     setAllDocuments(docs)
 
-    // Set first document as active if none selected
+    // Check if there's a specific document to show from URL params
+    const urlParams = new URLSearchParams(window.location.search)
+    const docId = urlParams.get("doc")
+
+    if (docId && docs.length > 0) {
+      const targetDoc = docs.find((doc) => doc.id === docId)
+      if (targetDoc) {
+        setActiveDocument(targetDoc)
+        return
+      }
+    }
+
+    // Set first document as active if none selected and no specific doc requested
     if (docs.length > 0 && !activeDocument) {
       setActiveDocument(docs[0])
     }
   }, [])
+
+  // Handle URL parameter changes for document selection
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const docId = urlParams.get("doc")
+
+    if (docId && allDocuments.length > 0) {
+      const targetDoc = allDocuments.find((doc) => doc.id === docId)
+      if (targetDoc && (!activeDocument || targetDoc.id !== activeDocument.id)) {
+        setActiveDocument(targetDoc)
+      }
+    }
+  }, [allDocuments]) // Removed activeDocument?.id from dependencies to prevent interference
 
   const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -205,6 +230,11 @@ export default function LibraryPage() {
 
   const handleDocumentSelect = (doc: DocumentData) => {
     setActiveDocument(doc)
+
+    // Update the URL to reflect the selected document without causing a page reload
+    const newUrl = new URL(window.location.href)
+    newUrl.searchParams.set("doc", doc.id)
+    window.history.replaceState({}, "", newUrl.toString())
 
     // Check if we're on mobile (lg breakpoint and below)
     const isMobile = window.innerWidth < 1024
@@ -368,7 +398,7 @@ export default function LibraryPage() {
                     )}
                     onClick={() => handleDocumentSelect(doc)}
                   >
-                    <div className="line-clamp-1 font-medium">{doc.title}</div>
+                    <div className="line-clamp-1 font-medium text-base">{doc.title}</div>
                     {doc.summary && (
                       <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.summary}</div>
                     )}
@@ -450,16 +480,16 @@ export default function LibraryPage() {
               {activeDocument.summary && (
                 <Card className="mb-6">
                   <CardContent className="p-4">
-                    <h2 className="text-sm font-medium text-muted-foreground mb-2">Summary</h2>
-                    <p className="text-sm leading-relaxed">{activeDocument.summary}</p>
+                    <h2 className="text-base font-medium text-muted-foreground mb-2">Summary</h2>
+                    <p className="text-base leading-relaxed">{activeDocument.summary}</p>
                   </CardContent>
                 </Card>
               )}
 
               <Card className="mb-6">
                 <CardContent className="p-4">
-                  <h2 className="text-sm font-medium text-muted-foreground mb-3">Table of Contents</h2>
-                  <ul className="space-y-2 text-sm">
+                  <h2 className="text-base font-medium text-muted-foreground mb-3">Table of Contents</h2>
+                  <ul className="space-y-2 text-base">
                     {extractHeadings(activeDocument.content).map((heading, index) => (
                       <li key={index}>
                         <button
