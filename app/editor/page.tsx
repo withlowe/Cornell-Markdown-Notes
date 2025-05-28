@@ -16,6 +16,7 @@ import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
 import { WysimarkEditor } from "@/components/wysimark-editor"
 import { Hash } from "lucide-react"
+import { exportToAnki } from "@/lib/anki-export-utils"
 
 export default function NotesEditorPage() {
   const router = useRouter()
@@ -28,6 +29,7 @@ export default function NotesEditorPage() {
   const [isImageInserterOpen, setIsImageInserterOpen] = useState(false)
   const [isNoteLinkInputOpen, setIsNoteLinkInputOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isExportingAnki, setIsExportingAnki] = useState(false)
 
   // Check if we're editing an existing document or creating a new one with a title
   useEffect(() => {
@@ -118,6 +120,19 @@ Add your main ideas and concepts.`)
   const handleInsertNoteLink = (linkText: string) => {
     insertAtCursor(linkText)
     setIsNoteLinkInputOpen(false)
+  }
+
+  const handleExportAnki = async () => {
+    setIsExportingAnki(true)
+    try {
+      await exportToAnki(title, summary, markdown)
+      console.log("Anki flashcards exported successfully")
+    } catch (error) {
+      console.error("Anki export failed:", error)
+      alert(`Anki export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+    } finally {
+      setIsExportingAnki(false)
+    }
   }
 
   // Function to insert text at cursor position
@@ -288,6 +303,9 @@ Add your main ideas and concepts.`)
           <div className="flex justify-end gap-3 mt-6">
             <Button size="default" variant="outline" onClick={handleExportPdf}>
               Export PDF
+            </Button>
+            <Button size="default" variant="outline" onClick={handleExportAnki} disabled={isExportingAnki}>
+              {isExportingAnki ? "Exporting..." : "Export Anki"}
             </Button>
             <Button size="default" onClick={handleSave} disabled={isSaving}>
               {isSaving ? "Saving..." : "Save to Library"}

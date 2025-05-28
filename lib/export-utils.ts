@@ -241,7 +241,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
       currentY += 8
 
-      currentY += 6
+      currentY += 2 // Reduced from 6 to 2 for smaller gap
 
       // List all the note links
       doc.setFontSize(11)
@@ -983,12 +983,9 @@ async function addImagesToPdf(
   // Find HTML images (our app primarily uses HTML img tags)
   while ((match = htmlImageRegex.exec(content)) !== null) {
     const src = match[1]
-    // Extract alt text if available
-    const altMatch = match[0].match(/alt=["'](.*?)["']/)
-    const alt = altMatch ? altMatch[1] : ""
-
+    // Don't extract alt text - we won't show it in PDF
     if (src) {
-      imagesToAdd.push({ src, alt })
+      imagesToAdd.push({ src })
       console.log("Found image in content:", src.substring(0, 50) + "...")
     }
   }
@@ -1093,23 +1090,7 @@ async function addImagesToPdf(
                 }
               }
 
-              // Add caption if there's alt text
-              if (image.alt) {
-                doc.setFontSize(11)
-                doc.setTextColor(100, 100, 100)
-
-                // Draw the caption ABOVE the image
-                const captionLines = doc.splitTextToSize(image.alt, maxWidth)
-                captionLines.forEach((captionLine) => {
-                  doc.text(captionLine, x, currentY + 1.5)
-                  currentY += lineHeight
-                })
-
-                // Add small spacing after caption
-                currentY += 2
-              }
-
-              // Add the image to the PDF with the correct dimensions
+              // Add the image to the PDF with the correct dimensions (no caption)
               doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
               console.log("Added image to PDF successfully")
 
@@ -1160,23 +1141,7 @@ async function addImagesToPdf(
               }
             }
 
-            // Add caption if there's alt text
-            if (image.alt) {
-              doc.setFontSize(11)
-              doc.setTextColor(100, 100, 100)
-
-              // Draw the caption ABOVE the image
-              const captionLines = doc.splitTextToSize(image.alt, maxWidth)
-              captionLines.forEach((captionLine) => {
-                doc.text(captionLine, x, currentY + 1.5)
-                currentY += lineHeight
-              })
-
-              // Add small spacing after caption
-              currentY += 2
-            }
-
-            // Add the image to the PDF with the correct dimensions
+            // Add the image to the PDF with the correct dimensions (no caption)
             doc.addImage(img, "JPEG", x, currentY, finalWidth, finalHeight, undefined, "FAST")
             console.log("Added image to PDF successfully")
 
