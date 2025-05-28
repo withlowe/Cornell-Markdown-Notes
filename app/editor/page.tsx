@@ -17,6 +17,15 @@ import { saveDocument, getDocument } from "@/lib/storage-utils"
 import { WysimarkEditor } from "@/components/wysimark-editor"
 import { Hash } from "lucide-react"
 import { exportToAnki } from "@/lib/anki-export-utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ChevronDown } from "lucide-react"
 
 export default function NotesEditorPage() {
   const router = useRouter()
@@ -97,10 +106,9 @@ Add your main ideas and concepts.`)
     }
   }
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (font: "sans" | "serif" | "mixed") => {
     try {
-      await exportToPdf(title, summary, markdown)
-
+      await exportToPdf(title, summary, markdown, font)
       console.log("PDF exported successfully")
     } catch (error) {
       console.error("PDF export failed:", error)
@@ -301,9 +309,23 @@ Add your main ideas and concepts.`)
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <Button size="default" variant="outline" onClick={handleExportPdf}>
-              Export PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="default" variant="outline">
+                  Export PDF
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuLabel>Font Style</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleExportPdf("sans")}>Sans-serif (Helvetica Neue)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif (Charter)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>
+                  Mixed (Sans titles, Serif body)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="default" variant="outline" onClick={handleExportAnki} disabled={isExportingAnki}>
               {isExportingAnki ? "Exporting..." : "Export Anki"}
             </Button>

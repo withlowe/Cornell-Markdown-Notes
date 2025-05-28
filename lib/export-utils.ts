@@ -8,7 +8,12 @@ interface Section {
 }
 
 // Export the main function that will be used in other files
-export async function exportToPdf(title: string, summary: string, markdown: string): Promise<void> {
+export async function exportToPdf(
+  title: string,
+  summary: string,
+  markdown: string,
+  font: "sans" | "serif" | "mixed" = "sans",
+): Promise<void> {
   try {
     // First, process the markdown to load images from storage
     const processedMarkdown = await processContentForExport(markdown)
@@ -32,19 +37,21 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
     const keyPointsWidth = 45
     const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
-    // Set clean, modern font
-    doc.setFont("helvetica", "normal")
+    // Set font families based on user preference
+    const titleFont = font === "serif" ? "times" : "helvetica"
+    const bodyFont = font === "sans" ? "helvetica" : "times"
+    const mixedMode = font === "mixed"
 
     // Set title - clean and minimal
     doc.setFontSize(24)
-    doc.setFont("helvetica", "bold")
+    doc.setFont(titleFont, "bold")
     doc.text(title, 15, 20)
-    doc.setFont("helvetica", "normal")
 
     // Add summary if provided - clean styling
     let y = 30
     if (summary) {
       doc.setFontSize(11)
+      doc.setFont(bodyFont, "normal")
       const summaryLineHeight = 5 // Reduced from 6
       const summaryLines = doc.splitTextToSize(summary, 180)
 
@@ -88,17 +95,15 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       const startY = y
       const startPage = doc.getCurrentPageInfo().pageNumber
 
-      // Draw key point (heading) with semibold styling
+      // Draw key point (heading) with semibold styling - use title font for headings
       doc.setFontSize(11)
-      // Use bold for semibold effect since jsPDF doesn't have semibold
-      doc.setFont("helvetica", "bold")
+      doc.setFont(titleFont, "bold")
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
       const headingLineHeight = 5 // Reduced from 6
       for (let i = 0; i < headingLines.length; i++) {
         doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
       }
-      doc.setFont("helvetica", "normal")
 
       const headingHeight = headingLines.length * headingLineHeight + 5
 
@@ -106,14 +111,21 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
       const contentStartX = margin + keyPointsWidth + 5
       const contentStartY = y + 5
 
-      // Pass section info to the rendering functions
+      // Pass section info and font settings to the rendering functions
       const sectionInfo = {
         currentSection: index,
         totalSections: sections.length,
       }
 
+      const fontSettings = {
+        titleFont,
+        bodyFont,
+        mixedMode,
+      }
+
       // Draw content with improved markdown rendering
       doc.setFontSize(11)
+      doc.setFont(bodyFont, "normal")
       const contentEndY = renderMarkdownContent(
         doc,
         section.content,
@@ -125,6 +137,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         keyPointsWidth,
         pageWidth - margin * 2,
         sectionInfo,
+        fontSettings,
       )
 
       // Add images after the text content
@@ -139,6 +152,7 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         keyPointsWidth,
         pageWidth - margin * 2,
         sectionInfo,
+        fontSettings,
       )
 
       // Store section boundary information for proper line drawing
@@ -203,16 +217,15 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
 
         doc.setPage(pageNum)
 
-        // Draw the key point heading on the continuation page (semibold)
+        // Draw the key point heading on the continuation page (semibold) - use title font
         doc.setFontSize(11)
-        doc.setFont("helvetica", "bold")
+        doc.setFont(titleFont, "bold")
         const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
         const headingLineHeight = 5 // Reduced from 6
         for (let i = 0; i < headingLines.length; i++) {
           doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
         }
-        doc.setFont("helvetica", "normal")
       }
     }
 
@@ -233,18 +246,17 @@ export async function exportToPdf(title: string, summary: string, markdown: stri
         currentY = margin + 10
       }
 
-      // Add related links section
+      // Add related links section - use title font for section heading
       doc.setFontSize(12) // Changed from 16 to 12
-      doc.setFont("helvetica", "bold")
+      doc.setFont(titleFont, "bold")
       doc.text("Related Notes", margin, currentY)
-      doc.setFont("helvetica", "normal")
 
       currentY += 8
-
       currentY += 2 // Reduced from 6 to 2 for smaller gap
 
-      // List all the note links
+      // List all the note links - use body font for list items
       doc.setFontSize(11)
+      doc.setFont(bodyFont, "normal")
       for (let i = 0; i < noteLinks.length; i++) {
         const link = noteLinks[i]
 
@@ -408,6 +420,7 @@ function renderTable(
   maxWidth: number,
   pageHeight: number,
   margin: number,
+  fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
   // Parse table rows and columns
   const tableRows = tableText.filter((line) => line.trim().startsWith("|") && line.trim().endsWith("|"))
@@ -440,9 +453,9 @@ function renderTable(
     currentY = margin
   }
 
-  // Draw table header
+  // Draw table header - use title font for headers
   doc.setFontSize(11) // Standardized font size for all text
-  doc.setFont("helvetica", "bold")
+  doc.setFont(fontSettings.titleFont, "bold")
 
   let currentX = x
   columns.forEach((col, colIndex) => {
@@ -477,7 +490,8 @@ function renderTable(
     currentX += columnWidth
   })
 
-  doc.setFont("helvetica", "normal")
+  // Switch to body font for table content
+  doc.setFont(fontSettings.bodyFont, "normal")
   currentY += rowHeight
 
   // Draw header separator - minimal line
@@ -495,7 +509,7 @@ function renderTable(
 
       // Redraw header on new page
       doc.setFontSize(11) // Standardized font size for all text
-      doc.setFont("helvetica", "bold")
+      doc.setFont(fontSettings.titleFont, "bold")
 
       currentX = x
       columns.forEach((col, colIndex) => {
@@ -530,7 +544,7 @@ function renderTable(
         currentX += columnWidth
       })
 
-      doc.setFont("helvetica", "normal")
+      doc.setFont(fontSettings.bodyFont, "normal")
       currentY += rowHeight
 
       // Redraw header separator - minimal line
@@ -611,10 +625,14 @@ function renderList(
   isNumbered: boolean,
   pageHeight: number,
   margin: number,
+  fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
   let currentY = y
   const lineHeight = 6 // Reduced from 8
   const indent = 5
+
+  // Use body font for list content
+  doc.setFont(fontSettings.bodyFont, "normal")
 
   for (let index = 0; index < listItems.length; index++) {
     const item = listItems[index]
@@ -623,6 +641,8 @@ function renderList(
     if (currentY + lineHeight > pageHeight - margin) {
       doc.addPage()
       currentY = margin
+      // Reset font after page break
+      doc.setFont(fontSettings.bodyFont, "normal")
     }
 
     // Create bullet or number
@@ -641,6 +661,8 @@ function renderList(
       if (currentY + lineHeight > pageHeight - margin) {
         doc.addPage()
         currentY = margin
+        // Reset font after page break
+        doc.setFont(fontSettings.bodyFont, "normal")
       }
 
       // Add slight padding to top
@@ -661,6 +683,7 @@ function renderCodeBlock(
   maxWidth: number,
   pageHeight: number,
   margin: number,
+  fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
   const lineHeight = 5 // Reduced from 7
   let currentY = y
@@ -677,8 +700,9 @@ function renderCodeBlock(
   doc.setFillColor(245, 245, 245)
   doc.rect(x, currentY, maxWidth, blockHeight, "F")
 
-  // Set monospace font for code
+  // Set monospace font for code - use body font family but monospace style
   doc.setFontSize(11) // Standardized font size for all text
+  doc.setFont(fontSettings.bodyFont, "normal")
 
   // Draw each line of code
   for (let i = 0; i < codeLines.length; i++) {
@@ -694,6 +718,9 @@ function renderCodeBlock(
       const remainingHeight = Math.min(remainingLines.length * lineHeight + 6, pageHeight - margin - currentY)
       doc.setFillColor(245, 245, 245)
       doc.rect(x, currentY, maxWidth, remainingHeight, "F")
+
+      // Reset font after page break
+      doc.setFont(fontSettings.bodyFont, "normal")
     }
 
     // Add slight padding to top
@@ -713,6 +740,7 @@ function renderBlockquote(
   maxWidth: number,
   pageHeight: number,
   margin: number,
+  fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
   const lineHeight = 6 // Reduced from 8
   let currentY = y
@@ -729,7 +757,8 @@ function renderBlockquote(
   doc.setDrawColor(200, 200, 200)
   doc.setLineWidth(1)
 
-  // Set quote text style
+  // Set quote text style - use body font
+  doc.setFont(fontSettings.bodyFont, "normal")
   doc.setTextColor(100, 100, 100)
 
   // Draw each line of the quote
@@ -746,6 +775,10 @@ function renderBlockquote(
         doc.addPage()
         currentY = margin
         startY = margin
+
+        // Reset font and color after page break
+        doc.setFont(fontSettings.bodyFont, "normal")
+        doc.setTextColor(100, 100, 100)
       }
 
       // Add slight padding to top
@@ -776,6 +809,7 @@ function renderMarkdownContent(
   keyPointsWidth: number,
   fullWidth: number,
   sectionInfo: { currentSection: number; totalSections: number },
+  fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
   const lines = content.split("\n")
   let currentY = y
@@ -795,6 +829,7 @@ function renderMarkdownContent(
 
       // Reset text properties after page break to ensure consistency
       doc.setFontSize(11) // Standardized font size for all text
+      doc.setFont(fontSettings.bodyFont, "normal")
       doc.setTextColor(0, 0, 0)
 
       // Draw the section divider on the new page - only if we're not at the last section
@@ -821,7 +856,7 @@ function renderMarkdownContent(
         i++
       }
 
-      currentY = renderTable(doc, tableLines, x, currentY, maxWidth, pageHeight, margin)
+      currentY = renderTable(doc, tableLines, x, currentY, maxWidth, pageHeight, margin, fontSettings)
       continue
     }
 
@@ -836,7 +871,7 @@ function renderMarkdownContent(
       }
 
       i++ // Skip the closing \`\`\`
-      currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth, pageHeight, margin)
+      currentY = renderCodeBlock(doc, codeLines, x, currentY, maxWidth, pageHeight, margin, fontSettings)
       continue
     }
 
@@ -848,7 +883,7 @@ function renderMarkdownContent(
         i++
       }
 
-      currentY = renderBlockquote(doc, quoteLines, x, currentY, maxWidth, pageHeight, margin)
+      currentY = renderBlockquote(doc, quoteLines, x, currentY, maxWidth, pageHeight, margin, fontSettings)
       continue
     }
 
@@ -860,7 +895,7 @@ function renderMarkdownContent(
         i++
       }
 
-      currentY = renderList(doc, listItems, x, currentY, maxWidth, false, pageHeight, margin)
+      currentY = renderList(doc, listItems, x, currentY, maxWidth, false, pageHeight, margin, fontSettings)
       continue
     }
 
@@ -872,18 +907,18 @@ function renderMarkdownContent(
         i++
       }
 
-      currentY = renderList(doc, listItems, x, currentY, maxWidth, true, pageHeight, margin)
+      currentY = renderList(doc, listItems, x, currentY, maxWidth, true, pageHeight, margin, fontSettings)
       continue
     }
 
-    // Check for headings (level 2-6)
+    // Check for headings (level 2-6) - use title font for headings
     if (line.trim().match(/^#{2,6}\s/)) {
       const level = line.trim().indexOf(" ")
       const headingText = line.trim().substring(level + 1)
 
       const originalSize = doc.getFontSize()
       doc.setFontSize(12 - (level - 2)) // Size based on heading level
-      doc.setFont("helvetica", "bold")
+      doc.setFont(fontSettings.titleFont, "bold")
 
       const textLines = doc.splitTextToSize(cleanMarkdown(headingText), maxWidth)
 
@@ -891,12 +926,14 @@ function renderMarkdownContent(
       if (currentY + textLines.length * lineHeight + 2 > pageHeight - margin) {
         doc.addPage()
         currentY = margin
+        // Reset font after page break
+        doc.setFont(fontSettings.titleFont, "bold")
       }
 
       // Add slight padding to top
       doc.text(textLines, x, currentY + 1.5)
 
-      doc.setFont("helvetica", "normal")
+      doc.setFont(fontSettings.bodyFont, "normal")
       doc.setFontSize(originalSize)
 
       currentY += textLines.length * lineHeight + 1 // Reduced spacing after headings
@@ -918,8 +955,9 @@ function renderMarkdownContent(
       continue
     }
 
-    // Regular paragraph text
+    // Regular paragraph text - use body font
     doc.setFontSize(11) // Standardized font size for all text
+    doc.setFont(fontSettings.bodyFont, "normal")
     const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
 
     // Process each line of text and check for page breaks
@@ -934,6 +972,7 @@ function renderMarkdownContent(
 
         // Reset text properties after page break to ensure consistency
         doc.setFontSize(11) // Standardized font size for all text
+        doc.setFont(fontSettings.bodyFont, "normal")
         doc.setTextColor(0, 0, 0)
 
         // Draw the section divider on the new page - only if we're not at the last section
@@ -969,6 +1008,7 @@ async function addImagesToPdf(
   keyPointsWidth: number,
   fullWidth: number,
   sectionInfo: { currentSection: number; totalSections: number },
+  fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): Promise<number> {
   let currentY = y
   const imageMargin = 4 // Reduced from 6
@@ -1013,6 +1053,7 @@ async function addImagesToPdf(
 
         // Reset text properties after page break
         doc.setFontSize(11) // Standardized font size for all text
+        doc.setFont(fontSettings.bodyFont, "normal")
         doc.setTextColor(0, 0, 0)
 
         // Draw the section divider on the new page - only if we're not at the last section

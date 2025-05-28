@@ -203,14 +203,14 @@ export default function LibraryPage() {
     }
   }
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (font: "sans" | "serif" | "mixed") => {
     if (!activeDocument) {
       alert("Please select a document to export.")
       return
     }
 
     try {
-      await exportToPdf(activeDocument.title, activeDocument.summary || "", activeDocument.content)
+      await exportToPdf(activeDocument.title, activeDocument.summary || "", activeDocument.content, font)
       alert(`Successfully exported "${activeDocument.title}" as PDF`)
     } catch (error) {
       console.error("PDF export failed:", error)
@@ -463,9 +463,25 @@ export default function LibraryPage() {
                   <Button variant="outline" size="sm" onClick={() => router.push(`/editor?id=${activeDocument.id}`)}>
                     Edit
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleExportPdf}>
-                    Export PDF
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        Export PDF
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuLabel>Font Style</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleExportPdf("sans")}>
+                        Sans-serif (Helvetica Neue)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif (Charter)</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>
+                        Mixed (Sans titles, Serif body)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     variant="outline"
                     size="sm"
