@@ -37,10 +37,26 @@ export async function exportToPdf(
     const keyPointsWidth = 45
     const contentWidth = pageWidth - margin - keyPointsWidth - margin
 
-    // Set font families based on user preference
-    const titleFont = font === "serif" ? "times" : "helvetica"
-    const bodyFont = font === "sans" ? "helvetica" : "times"
-    const mixedMode = font === "mixed"
+    // Set font families based on user preference - use standard jsPDF fonts
+    // These are the fonts that work reliably with jsPDF
+    let titleFont: string
+    let bodyFont: string
+
+    switch (font) {
+      case "serif":
+        titleFont = "times"
+        bodyFont = "times"
+        break
+      case "mixed":
+        titleFont = "helvetica" // Sans for titles
+        bodyFont = "times" // Serif for body
+        break
+      case "sans":
+      default:
+        titleFont = "helvetica"
+        bodyFont = "helvetica"
+        break
+    }
 
     // Set title - clean and minimal
     doc.setFontSize(24)
@@ -52,15 +68,15 @@ export async function exportToPdf(
     if (summary) {
       doc.setFontSize(11)
       doc.setFont(bodyFont, "normal")
-      const summaryLineHeight = 5 // Reduced from 6
+      const summaryLineHeight = 6 // Consistent line height
       const summaryLines = doc.splitTextToSize(summary, 180)
 
       // Apply clean line spacing
       for (let i = 0; i < summaryLines.length; i++) {
-        doc.text(summaryLines[i], 15, y + i * summaryLineHeight + 1.5)
+        doc.text(summaryLines[i], 15, y + i * summaryLineHeight + 2)
       }
 
-      y += summaryLines.length * summaryLineHeight + 4
+      y += summaryLines.length * summaryLineHeight + 6
     } else {
       y = 35
     }
@@ -100,9 +116,9 @@ export async function exportToPdf(
       doc.setFont(titleFont, "bold")
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-      const headingLineHeight = 5 // Reduced from 6
+      const headingLineHeight = 6 // Consistent line height
       for (let i = 0; i < headingLines.length; i++) {
-        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 1.5)
+        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 2)
       }
 
       const headingHeight = headingLines.length * headingLineHeight + 5
@@ -120,7 +136,7 @@ export async function exportToPdf(
       const fontSettings = {
         titleFont,
         bodyFont,
-        mixedMode,
+        mixedMode: font === "mixed",
       }
 
       // Draw content with improved markdown rendering
@@ -222,9 +238,9 @@ export async function exportToPdf(
         doc.setFont(titleFont, "bold")
         const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
-        const headingLineHeight = 5 // Reduced from 6
+        const headingLineHeight = 6 // Consistent line height
         for (let i = 0; i < headingLines.length; i++) {
-          doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 1.5)
+          doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 2)
         }
       }
     }
@@ -239,37 +255,38 @@ export async function exportToPdf(
       let currentY = y + 20 // Add some space before the related links
 
       // Check if we have enough space for the related links section
-      const estimatedHeight = 20 + noteLinks.length * 5 // Reduced from 25 + noteLinks.length * 6
+      const estimatedHeight = 20 + noteLinks.length * 6
 
       if (currentY + estimatedHeight > pageHeight - margin) {
         doc.addPage()
         currentY = margin + 10
       }
 
-      // Add related links section - use title font for section heading
-      doc.setFontSize(12) // Changed from 16 to 12
-      doc.setFont(titleFont, "bold")
+      // Add related links section - ALWAYS use helvetica (sans-serif) for Related Notes
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "bold") // Always sans-serif for Related Notes
       doc.text("Related Notes", margin, currentY)
 
       currentY += 8
-      currentY += 2 // Reduced from 6 to 2 for smaller gap
+      currentY += 2
 
-      // List all the note links - use body font for list items
+      // List all the note links - ALWAYS use helvetica (sans-serif) for Related Notes
       doc.setFontSize(11)
-      doc.setFont(bodyFont, "normal")
+      doc.setFont("helvetica", "normal") // Always sans-serif for Related Notes
       for (let i = 0; i < noteLinks.length; i++) {
         const link = noteLinks[i]
 
         // Check if we need a new page
-        if (currentY + 5 > pageHeight - margin) {
-          // Reduced from 6
+        if (currentY + 6 > pageHeight - margin) {
           doc.addPage()
           currentY = margin
+          // Reset font to helvetica after page break
+          doc.setFont("helvetica", "normal")
         }
 
         // Add bullet point and link text
         doc.text(`• ${link}`, margin + 5, currentY)
-        currentY += 5 // Reduced from 6
+        currentY += 6 // Consistent line height
       }
     }
 
@@ -376,30 +393,6 @@ async function processContentForExport(content: string): Promise<string> {
   return processedContent
 }
 
-// Extract image URLs from markdown and HTML
-function extractImageUrls(content: string): string[] {
-  const urls: string[] = []
-
-  // Extract markdown image URLs
-  const markdownRegex = /!\[(.*?)\]$$(.*?)$$/g
-  let match
-  while ((match = markdownRegex.exec(content)) !== null) {
-    if (match[2] && !match[2].startsWith("data:")) {
-      urls.push(match[2])
-    }
-  }
-
-  // Extract HTML image URLs
-  const htmlRegex = /<img.*?src=["'](.*?)["'].*?>/g
-  while ((match = htmlRegex.exec(content)) !== null) {
-    if (match[1] && !match[1].startsWith("data:")) {
-      urls.push(match[1])
-    }
-  }
-
-  return urls
-}
-
 // Clean markdown text for rendering
 function cleanMarkdown(text: string): string {
   // Remove bold and italic markers but keep the text
@@ -443,8 +436,8 @@ function renderTable(
   const columnWidth = totalWidth / columns.length
 
   // Set up table styling
-  const cellPadding = 3 // Reduced from 4
-  const rowHeight = 8 // Reduced from 10
+  const cellPadding = 3
+  const rowHeight = 8
   let currentY = y
 
   // Check if we need a new page before starting the table
@@ -454,7 +447,7 @@ function renderTable(
   }
 
   // Draw table header - use title font for headers
-  doc.setFontSize(11) // Standardized font size for all text
+  doc.setFontSize(11)
   doc.setFont(fontSettings.titleFont, "bold")
 
   let currentX = x
@@ -482,7 +475,7 @@ function renderTable(
     }
 
     // Draw text with proper alignment
-    doc.text(colText, textX, currentY + rowHeight / 2 + 1.5, {
+    doc.text(colText, textX, currentY + rowHeight / 2 + 2, {
       align: textAlign,
       baseline: "middle",
     })
@@ -508,7 +501,7 @@ function renderTable(
       currentY = margin
 
       // Redraw header on new page
-      doc.setFontSize(11) // Standardized font size for all text
+      doc.setFontSize(11)
       doc.setFont(fontSettings.titleFont, "bold")
 
       currentX = x
@@ -536,7 +529,7 @@ function renderTable(
         }
 
         // Draw text with proper alignment
-        doc.text(colText, textX, currentY + rowHeight / 2 + 1.5, {
+        doc.text(colText, textX, currentY + rowHeight / 2 + 2, {
           align: textAlign,
           baseline: "middle",
         })
@@ -586,7 +579,7 @@ function renderTable(
         const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
 
         // Calculate vertical position for text (top-aligned)
-        const lineHeight = doc.getTextDimensions("Text").h * 1.1 // Reduced from 1.2
+        const lineHeight = 6 // Consistent line height
         const textY = currentY + cellPadding
 
         // Draw each line of text
@@ -605,14 +598,14 @@ function renderTable(
 
     // Draw horizontal row separator (only a light line)
     if (rowIndex < contentRows.length - 1) {
-      doc.setDrawColor(220, 220, 220) // Very light gray for minimal ink usage
-      doc.setLineWidth(0.1) // Thinner line
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.1)
       doc.line(x, currentY, x + totalWidth, currentY)
-      doc.setLineWidth(0.2) // Reset line width
+      doc.setLineWidth(0.2)
     }
   }
 
-  return currentY + 4 // Reduced from 6
+  return currentY + 4
 }
 
 // Render a list in PDF
@@ -628,7 +621,7 @@ function renderList(
   fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
   let currentY = y
-  const lineHeight = 6 // Reduced from 8
+  const lineHeight = 6 // Consistent line height
   const indent = 5
 
   // Use body font for list content
@@ -649,8 +642,8 @@ function renderList(
     const marker = isNumbered ? `${index + 1}.` : "•"
     const markerWidth = doc.getTextWidth(isNumbered ? `${marker} ` : `${marker}  `)
 
-    // Draw the marker - add slight padding to top
-    doc.text(marker, x, currentY + 1.5)
+    // Draw the marker
+    doc.text(marker, x, currentY + 2)
 
     // Draw the list item text with wrapping
     const itemText = cleanMarkdown(item.trim())
@@ -665,13 +658,12 @@ function renderList(
         doc.setFont(fontSettings.bodyFont, "normal")
       }
 
-      // Add slight padding to top
-      doc.text(textLines[lineIndex], x + markerWidth + indent, currentY + 1.5)
+      doc.text(textLines[lineIndex], x + markerWidth + indent, currentY + 2)
       currentY += lineHeight
     }
   }
 
-  return currentY + 1 // Further reduced spacing after list
+  return currentY + 2
 }
 
 // Render a code block in PDF
@@ -685,7 +677,7 @@ function renderCodeBlock(
   margin: number,
   fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
-  const lineHeight = 5 // Reduced from 7
+  const lineHeight = 6 // Consistent line height
   let currentY = y
 
   // Check if we need a new page
@@ -700,9 +692,9 @@ function renderCodeBlock(
   doc.setFillColor(245, 245, 245)
   doc.rect(x, currentY, maxWidth, blockHeight, "F")
 
-  // Set monospace font for code - use body font family but monospace style
-  doc.setFontSize(11) // Standardized font size for all text
-  doc.setFont(fontSettings.bodyFont, "normal")
+  // Set monospace font for code
+  doc.setFontSize(11)
+  doc.setFont("courier", "normal") // Use courier for code blocks
 
   // Draw each line of code
   for (let i = 0; i < codeLines.length; i++) {
@@ -720,15 +712,14 @@ function renderCodeBlock(
       doc.rect(x, currentY, maxWidth, remainingHeight, "F")
 
       // Reset font after page break
-      doc.setFont(fontSettings.bodyFont, "normal")
+      doc.setFont("courier", "normal")
     }
 
-    // Add slight padding to top
-    doc.text(codeLines[i], x + 3, currentY + 5 + 1.5)
+    doc.text(codeLines[i], x + 3, currentY + 5 + 2)
     currentY += lineHeight
   }
 
-  return currentY + 1 // Further reduced spacing after code block
+  return currentY + 2
 }
 
 // Render a blockquote in PDF
@@ -742,7 +733,7 @@ function renderBlockquote(
   margin: number,
   fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): number {
-  const lineHeight = 6 // Reduced from 8
+  const lineHeight = 6 // Consistent line height
   let currentY = y
   let startY = y
 
@@ -781,8 +772,7 @@ function renderBlockquote(
         doc.setTextColor(100, 100, 100)
       }
 
-      // Add slight padding to top
-      doc.text(textLines[j], x + 5, currentY + 1.5)
+      doc.text(textLines[j], x + 5, currentY + 2)
       currentY += lineHeight
     }
   }
@@ -794,7 +784,7 @@ function renderBlockquote(
   // Reset text color
   doc.setTextColor(0, 0, 0)
 
-  return currentY + 1 // Further reduced spacing after blockquote
+  return currentY + 2
 }
 
 // Process markdown content for PDF rendering
@@ -813,7 +803,7 @@ function renderMarkdownContent(
 ): number {
   const lines = content.split("\n")
   let currentY = y
-  const lineHeight = 6 // Reduced from 8
+  const lineHeight = 6 // Consistent line height
 
   let i = 0
   while (i < lines.length) {
@@ -821,20 +811,16 @@ function renderMarkdownContent(
 
     // Check if we need a new page
     if (currentY + lineHeight > pageHeight - margin) {
-      // Store current page number before adding a new page
-      const currentPage = doc.getCurrentPageInfo().pageNumber
-
       doc.addPage()
       currentY = margin
 
       // Reset text properties after page break to ensure consistency
-      doc.setFontSize(11) // Standardized font size for all text
+      doc.setFontSize(11)
       doc.setFont(fontSettings.bodyFont, "normal")
       doc.setTextColor(0, 0, 0)
 
-      // Draw the section divider on the new page - only if we're not at the last section
+      // Draw the section divider on the new page
       if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
-        // Draw the vertical divider
         doc.setDrawColor(230, 230, 230)
         doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
       }
@@ -842,7 +828,7 @@ function renderMarkdownContent(
 
     // Skip empty lines but add spacing
     if (line.trim() === "") {
-      currentY += lineHeight / 4 // Reduced spacing for empty lines
+      currentY += lineHeight / 3 // Reduced spacing for empty lines
       i++
       continue
     }
@@ -930,33 +916,30 @@ function renderMarkdownContent(
         doc.setFont(fontSettings.titleFont, "bold")
       }
 
-      // Add slight padding to top
-      doc.text(textLines, x, currentY + 1.5)
+      doc.text(textLines, x, currentY + 2)
 
       doc.setFont(fontSettings.bodyFont, "normal")
       doc.setFontSize(originalSize)
 
-      currentY += textLines.length * lineHeight + 1 // Reduced spacing after headings
+      currentY += textLines.length * lineHeight + 2
       i++
       continue
     }
 
-    // Check for HTML image tags - REMOVED PLACEHOLDER TEXT
+    // Check for HTML image tags - skip without placeholder
     if (line.includes("<img") && line.includes("src=")) {
-      // Skip the image line without adding any placeholder text
       i++
       continue
     }
 
-    // Check for markdown images - REMOVED PLACEHOLDER TEXT
+    // Check for markdown images - skip without placeholder
     if (line.includes("![") && line.includes("](")) {
-      // Skip the image line without adding any placeholder text
       i++
       continue
     }
 
     // Regular paragraph text - use body font
-    doc.setFontSize(11) // Standardized font size for all text
+    doc.setFontSize(11)
     doc.setFont(fontSettings.bodyFont, "normal")
     const textLines = doc.splitTextToSize(cleanMarkdown(line), maxWidth)
 
@@ -964,32 +947,27 @@ function renderMarkdownContent(
     for (let j = 0; j < textLines.length; j++) {
       // Check if we need a new page
       if (currentY + lineHeight > pageHeight - margin) {
-        // Store current page number before adding a new page
-        const currentPage = doc.getCurrentPageInfo().pageNumber
-
         doc.addPage()
         currentY = margin
 
         // Reset text properties after page break to ensure consistency
-        doc.setFontSize(11) // Standardized font size for all text
+        doc.setFontSize(11)
         doc.setFont(fontSettings.bodyFont, "normal")
         doc.setTextColor(0, 0, 0)
 
-        // Draw the section divider on the new page - only if we're not at the last section
+        // Draw the section divider on the new page
         if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
-          // Draw the vertical divider
           doc.setDrawColor(230, 230, 230)
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
         }
       }
 
-      // Add slight padding to top (increased from 1 to 1.5)
-      doc.text(textLines[j], x, currentY + 1.5)
+      doc.text(textLines[j], x, currentY + 2)
       currentY += lineHeight
     }
 
-    // Add a small gap between paragraphs (reduced by half)
-    currentY += lineHeight * 0.03 // Minimal spacing between paragraphs
+    // Add a small gap between paragraphs
+    currentY += lineHeight * 0.1
     i++
   }
 
@@ -1011,9 +989,9 @@ async function addImagesToPdf(
   fontSettings: { titleFont: string; bodyFont: string; mixedMode: boolean },
 ): Promise<number> {
   let currentY = y
-  const imageMargin = 4 // Reduced from 6
-  const maxImageHeight = 60 // Maximum height for images in the PDF
-  const lineHeight = 6 // Reduced from 8
+  const imageMargin = 4
+  const maxImageHeight = 60
+  const lineHeight = 6
 
   // Extract all image URLs (both markdown and HTML)
   const htmlImageRegex = /<img.*?src=["'](.*?)["'].*?>/g
@@ -1023,50 +1001,38 @@ async function addImagesToPdf(
   // Find HTML images (our app primarily uses HTML img tags)
   while ((match = htmlImageRegex.exec(content)) !== null) {
     const src = match[1]
-    // Don't extract alt text - we won't show it in PDF
     if (src) {
       imagesToAdd.push({ src })
-      console.log("Found image in content:", src.substring(0, 50) + "...")
     }
   }
 
   // If no images were found, return the current Y position
   if (imagesToAdd.length === 0) {
-    console.log("No images found in content")
     return currentY
   }
-
-  console.log(`Found ${imagesToAdd.length} images to add to PDF`)
 
   // Add each image to the PDF
   for (const image of imagesToAdd) {
     try {
-      console.log("Processing image:", image.src.substring(0, 50) + "...")
-
       // Check if we need a new page
       if (currentY + maxImageHeight > pageHeight - margin) {
-        // Store current page number before adding a new page
-        const currentPage = doc.getCurrentPageInfo().pageNumber
-
         doc.addPage()
         currentY = margin
 
         // Reset text properties after page break
-        doc.setFontSize(11) // Standardized font size for all text
+        doc.setFontSize(11)
         doc.setFont(fontSettings.bodyFont, "normal")
         doc.setTextColor(0, 0, 0)
 
-        // Draw the section divider on the new page - only if we're not at the last section
+        // Draw the section divider on the new page
         if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
-          // Draw the vertical divider
           doc.setDrawColor(230, 230, 230)
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
         }
       }
 
-      // Skip placeholder images - NO TEXT PLACEHOLDER ADDED
+      // Skip placeholder images
       if (image.src.includes("/placeholder.svg") || image.src.includes("/generic-placeholder-icon.png")) {
-        // Skip without adding any text
         continue
       }
 
@@ -1082,12 +1048,10 @@ async function addImagesToPdf(
           if (imageData) {
             image.src = imageData
           } else {
-            // Skip if image not found - NO TEXT PLACEHOLDER ADDED
             continue
           }
         } catch (error) {
           console.error("Error loading image from storage:", error)
-          // Skip if loading fails - NO TEXT PLACEHOLDER ADDED
           continue
         }
       }
@@ -1117,23 +1081,18 @@ async function addImagesToPdf(
             try {
               // Check if we need a new page for the image
               if (currentY + finalHeight + 10 > pageHeight - margin) {
-                // Store current page number before adding a new page
-                const currentPage = doc.getCurrentPageInfo().pageNumber
-
                 doc.addPage()
                 currentY = margin
 
-                // Draw the section divider on the new page - only if we're not at the last section
+                // Draw the section divider on the new page
                 if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
-                  // Draw the vertical divider
                   doc.setDrawColor(230, 230, 230)
                   doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
                 }
               }
 
-              // Add the image to the PDF with the correct dimensions (no caption)
+              // Add the image to the PDF with the correct dimensions
               doc.addImage(image.src, validFormat, x, currentY, finalWidth, finalHeight, undefined, "FAST")
-              console.log("Added image to PDF successfully")
 
               // Move to the next position
               currentY += finalHeight + imageMargin
@@ -1149,53 +1108,6 @@ async function addImagesToPdf(
           }
           img.src = image.src
         })
-      } else {
-        // Load the image from a URL
-        img.onload = async () => {
-          // Calculate dimensions to maintain aspect ratio correctly
-          const aspectRatio = img.width / img.height
-
-          // Set a maximum width based on available space
-          const imgWidth = Math.min(maxWidth, 150)
-
-          // Calculate height based on the aspect ratio
-          const imgHeight = imgWidth / aspectRatio
-
-          // If the height is too large, recalculate width based on max height
-          const finalHeight = Math.min(imgHeight, maxImageHeight)
-          const finalWidth = finalHeight * aspectRatio
-
-          try {
-            // Check if we need a new page for the image
-            if (currentY + finalHeight + 10 > pageHeight - margin) {
-              // Store current page number before adding a new page
-              const currentPage = doc.getCurrentPageInfo().pageNumber
-
-              doc.addPage()
-              currentY = margin
-
-              // Draw the section divider on the new page - only if we're not at the last section
-              if (sectionInfo.currentSection < sectionInfo.totalSections - 1) {
-                // Draw the vertical divider
-                doc.setDrawColor(230, 230, 230)
-                doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
-              }
-            }
-
-            // Add the image to the PDF with the correct dimensions (no caption)
-            doc.addImage(img, "JPEG", x, currentY, finalWidth, finalHeight, undefined, "FAST")
-            console.log("Added image to PDF successfully")
-
-            // Move to the next position
-            currentY += finalHeight + imageMargin
-          } catch (error) {
-            console.error("Error adding image to PDF:", error)
-          }
-        }
-        img.onerror = () => {
-          console.error("Error loading image:", image.src)
-        }
-        img.src = image.src
       }
     } catch (error) {
       console.error("Error processing image:", error)
