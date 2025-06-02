@@ -133,7 +133,7 @@
 }
 
 .card-standard {
-  @apply bg-card border border-gray-100 dark:border-gray-800 rounded-md overflow-hidden transition-all duration-300;
+  @apply bg-card border border-gray-100 dark:border-muted rounded-md overflow-hidden transition-all duration-300;
 }
 
 .card-standard:hover {
@@ -148,4 +148,25 @@
 
 .note-link:hover {
   @apply bg-accent/50 px-1 rounded;
+}
+
+/* Full-width image styling - for web interface */
+.full-width-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  display: block !important;
+  margin: 1rem 0 !important;
+  object-fit: contain !important;
+}
+
+/* Force all images to use maximum available width */
+.markdown-content img,
+.html-content img {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  display: block !important;
+  margin: 1rem 0 !important;
+  object-fit: contain !important;
 }

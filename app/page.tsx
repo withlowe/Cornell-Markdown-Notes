@@ -473,13 +473,9 @@ export default function LibraryPage() {
                     <DropdownMenuContent>
                       <DropdownMenuLabel>Font Style</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleExportPdf("sans")}>
-                        Sans-serif (Helvetica Neue)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif (Charter)</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>
-                        Mixed (Sans titles, Serif body)
-                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportPdf("sans")}>Sans</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>Mixed</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <Button

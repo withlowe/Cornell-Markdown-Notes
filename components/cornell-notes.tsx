@@ -183,19 +183,19 @@ export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
             <div className={`py-4 px-4 relative ${index % 2 === 0 ? "bg-muted/10" : "bg-background"}`}>
               {/* First render any HTML content directly */}
               <div
-                className="html-content"
+                className="html-content w-full"
                 dangerouslySetInnerHTML={{
                   __html: renderHtmlContent(section.content),
                 }}
               />
 
               {/* Then render markdown content with ReactMarkdown */}
-              <div className="markdown-content overflow-x-auto">
+              <div className="markdown-content w-full overflow-x-auto">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
                     // Style the markdown elements
-                    p: ({ node, ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+                    p: ({ node, ...props }) => <p className="mb-4 last:mb-0 w-full" {...props} />,
                     ul: ({ node, ...props }) => <ul className="list-disc pl-6 mb-4 last:mb-0" {...props} />,
                     ol: ({ node, ...props }) => <ol className="list-decimal pl-6 mb-4 last:mb-0" {...props} />,
                     li: ({ node, ...props }) => <li className="mb-1" {...props} />,
@@ -229,7 +229,7 @@ export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
                     td: ({ node, ...props }) => (
                       <td className="px-4 py-2 border-r border-border last:border-0" {...props} />
                     ),
-                    img: ({ node, src, alt, ...props }) => {
+                    img: ({ node, src, alt, className, ...props }) => {
                       // Don't render the image if src is empty
                       if (!src) return null
 
@@ -237,7 +237,7 @@ export function CornellNotes({ markdown, onNoteClick }: CornellNotesProps) {
                         <img
                           src={src || "/placeholder.svg"}
                           alt={alt || "Image"}
-                          className="max-w-full h-auto rounded-md my-4"
+                          className="w-full h-auto object-contain rounded-md my-4"
                           loading="lazy"
                           onError={(e) => {
                             console.error("Image failed to load:", src)
@@ -278,12 +278,15 @@ function renderHtmlContent(content: string): string {
 
   if (allMatches.length === 0) return ""
 
-  // Return the HTML for these elements with proper styling
+  // Return the HTML for these elements with maximum width styling
   return allMatches
     .map((match) => {
       if (match.includes("<img")) {
-        // Add classes to the image for styling
-        return match.replace("<img", '<img class="max-w-full h-auto rounded-md my-4"')
+        // Force maximum width with inline styles to override any CSS constraints
+        return match.replace(
+          "<img",
+          '<img style="width: 100% !important; max-width: none !important; height: auto !important; display: block !important; margin: 1rem 0 !important; object-fit: contain !important;"',
+        )
       }
       return match
     })

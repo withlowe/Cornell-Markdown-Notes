@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ChevronDown } from "lucide-react"
+import { DiagramInserter } from "@/components/diagram-inserter"
 
 export default function NotesEditorPage() {
   const router = useRouter()
@@ -39,6 +40,7 @@ export default function NotesEditorPage() {
   const [isNoteLinkInputOpen, setIsNoteLinkInputOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isExportingAnki, setIsExportingAnki] = useState(false)
+  const [isDiagramInserterOpen, setIsDiagramInserterOpen] = useState(false)
 
   // Check if we're editing an existing document or creating a new one with a title
   useEffect(() => {
@@ -263,25 +265,36 @@ Add your main ideas and concepts.`)
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="border shadow-sm card-standard h-[600px] flex flex-col">
               <CardContent className="p-6 flex-1 flex flex-col">
+                <div className="mb-3 text-caption">
+                  Use markdown headings (#) for key points. Link to other notes with [[Note Title]].
+                </div>
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-heading-3">Edit</h2>
-                  <div className="flex gap-3 flex-wrap">
-                    <Button size="default" variant="outline" onClick={() => insertAtCursor("# ")}>
-                      <Hash className="h-4 w-4" />
-                    </Button>
-                    {isNoteLinkInputOpen ? (
-                      <NoteLinkInput onInsert={handleInsertNoteLink} onClose={() => setIsNoteLinkInputOpen(false)} />
-                    ) : (
-                      <Button size="default" variant="outline" onClick={() => setIsNoteLinkInputOpen(true)}>
-                        Link
+                  
+
+                  <div className="flex flex-wrap gap-2 justify-between items-center">
+                    <div className="flex gap-2 flex-wrap">
+                      <Button size="default" variant="outline" onClick={() => insertAtCursor("# ")}>
+                        <Hash className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button size="default" variant="outline" onClick={() => setIsImageInserterOpen(true)}>
-                      + Image
-                    </Button>
-                    <Button size="default" variant="outline" onClick={() => setIsTableGeneratorOpen(true)}>
-                      + Table
-                    </Button>
+                      {isNoteLinkInputOpen ? (
+                        <NoteLinkInput onInsert={handleInsertNoteLink} onClose={() => setIsNoteLinkInputOpen(false)} />
+                      ) : (
+                        <Button size="default" variant="outline" onClick={() => setIsNoteLinkInputOpen(true)}>
+                          Link
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button size="default" variant="outline" onClick={() => setIsImageInserterOpen(true)}>
+                        + Image
+                      </Button>
+                      <Button size="default" variant="outline" onClick={() => setIsDiagramInserterOpen(true)}>
+                        + Diagram
+                      </Button>
+                      <Button size="default" variant="outline" onClick={() => setIsTableGeneratorOpen(true)}>
+                        + Table
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <div className="flex-1 min-h-0 flex flex-col">
@@ -292,9 +305,7 @@ Add your main ideas and concepts.`)
                     className="flex-1 min-h-0"
                   />
                 </div>
-                <div className="mt-3 text-caption">
-                  Use markdown headings (#) for key points. Link to other notes with [[Note Title]].
-                </div>
+                
               </CardContent>
             </Card>
 
@@ -319,11 +330,9 @@ Add your main ideas and concepts.`)
               <DropdownMenuContent>
                 <DropdownMenuLabel>Font Style</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleExportPdf("sans")}>Sans-serif (Helvetica Neue)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif (Charter)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>
-                  Mixed (Sans titles, Serif body)
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPdf("sans")}>Sans</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>Mixed</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button size="default" variant="outline" onClick={handleExportAnki} disabled={isExportingAnki}>
@@ -345,6 +354,11 @@ Add your main ideas and concepts.`)
       <ImageInserter
         isOpen={isImageInserterOpen}
         onClose={() => setIsImageInserterOpen(false)}
+        onInsert={handleInsertImage}
+      />
+      <DiagramInserter
+        isOpen={isDiagramInserterOpen}
+        onClose={() => setIsDiagramInserterOpen(false)}
         onInsert={handleInsertImage}
       />
     </main>

@@ -26,28 +26,30 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
   const [uploadedFileName, setUploadedFileName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isFullWidth, setIsFullWidth] = useState(false)
 
   // Handle image insertion with storage
   const handleInsert = async () => {
     try {
       let markdown = ""
+      const fullWidthClass = isFullWidth ? ' class="full-width-image"' : ""
 
       if (activeTab === "url") {
         // For regular image URLs, use them directly
         if (!imageUrl.trim()) {
           return // Don't insert if URL is empty
         }
-        markdown = `<img src="${imageUrl}" alt="${altText || "Image"}" />\n`
+        markdown = `<img src="${imageUrl}" alt="${altText || "Image"}"${fullWidthClass} />\n`
       } else if (activeTab === "placeholder") {
         // For placeholder images, use the placeholder URL
         const query = encodeURIComponent(placeholderQuery || "abstract")
         const placeholderUrl = `/placeholder.svg?height=${placeholderHeight}&width=${placeholderWidth}&query=${query}`
-        markdown = `<img src="${placeholderUrl}" alt="${altText || "Placeholder image"}" />\n`
+        markdown = `<img src="${placeholderUrl}" alt="${altText || "Placeholder image"}"${fullWidthClass} />\n`
       } else if (activeTab === "upload" && uploadedImage) {
         // For uploaded images, store in IndexedDB and use the image ID
         setIsLoading(true)
         const imageId = await storeImage(uploadedImage, uploadedFileName)
-        markdown = `<img src="cornell-image://${imageId}" alt="${altText || uploadedFileName || "Uploaded image"}" />\n`
+        markdown = `<img src="cornell-image://${imageId}" alt="${altText || uploadedFileName || "Uploaded image"}"${fullWidthClass} />\n`
         console.log(`Image stored with ID: ${imageId}`)
       }
 
@@ -72,6 +74,7 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
     setUploadedImage(null)
     setUploadedFileName("")
     setActiveTab("url")
+    setIsFullWidth(false)
   }
 
   // Always use data URLs for uploaded images
@@ -163,6 +166,19 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
               />
             </div>
 
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="fullWidth"
+                checked={isFullWidth}
+                onChange={(e) => setIsFullWidth(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="fullWidth" className="text-sm">
+                Full width
+              </Label>
+            </div>
+
             {imageUrl ? (
               <div className="border rounded-md p-2 mt-2">
                 <p className="text-xs text-muted-foreground mb-2">Preview:</p>
@@ -233,6 +249,19 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
                 placeholder="Description of the image"
               />
             </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="fullWidth"
+                checked={isFullWidth}
+                onChange={(e) => setIsFullWidth(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="fullWidth" className="text-sm">
+                Full width
+              </Label>
+            </div>
           </TabsContent>
 
           <TabsContent value="placeholder" className="space-y-4 mt-4">
@@ -279,6 +308,19 @@ export function ImageInserter({ isOpen, onClose, onInsert }: ImageInserterProps)
                 onChange={(e) => setAltText(e.target.value)}
                 placeholder="Description of the image"
               />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="fullWidth"
+                checked={isFullWidth}
+                onChange={(e) => setIsFullWidth(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="fullWidth" className="text-sm">
+                Full width
+              </Label>
             </div>
 
             <div className="border rounded-md p-2 mt-2">
