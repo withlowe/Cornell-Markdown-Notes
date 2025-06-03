@@ -68,16 +68,40 @@ function setFont(doc: jsPDF, fontName: string, style = "normal") {
     // Special handling for courier/monospace to ensure code blocks use monospace
     if (fontName.toLowerCase() === "courier") {
       try {
-        // Try multiple courier font variations
-        doc.setFont("courier", style === "bold" ? "bold" : "normal")
+        // Try multiple courier font variations with proper italic support
+        if (style === "italic") {
+          doc.setFont("courier", "italic")
+        } else if (style === "bold") {
+          doc.setFont("courier", "bold")
+        } else if (style === "bolditalic") {
+          doc.setFont("courier", "bolditalic")
+        } else {
+          doc.setFont("courier", "normal")
+        }
         return
       } catch (error) {
         try {
-          doc.setFont("Courier", style === "bold" ? "bold" : "normal")
+          if (style === "italic") {
+            doc.setFont("Courier", "italic")
+          } else if (style === "bold") {
+            doc.setFont("Courier", "bold")
+          } else if (style === "bolditalic") {
+            doc.setFont("Courier", "bolditalic")
+          } else {
+            doc.setFont("Courier", "normal")
+          }
           return
         } catch (error2) {
           console.warn("Failed to set courier fonts, using helvetica fallback")
-          doc.setFont("helvetica", style === "bold" ? "bold" : "normal")
+          if (style === "italic") {
+            doc.setFont("helvetica", "italic")
+          } else if (style === "bold") {
+            doc.setFont("helvetica", "bold")
+          } else if (style === "bolditalic") {
+            doc.setFont("helvetica", "bolditalic")
+          } else {
+            doc.setFont("helvetica", "normal")
+          }
           return
         }
       }
@@ -87,11 +111,27 @@ function setFont(doc: jsPDF, fontName: string, style = "normal") {
     if (fontName.toLowerCase() === "times") {
       try {
         // Try Georgia first for better serif appearance
-        doc.setFont("georgia", style === "bold" ? "bold" : "normal")
+        if (style === "italic") {
+          doc.setFont("georgia", "italic")
+        } else if (style === "bold") {
+          doc.setFont("georgia", "bold")
+        } else if (style === "bolditalic") {
+          doc.setFont("georgia", "bolditalic")
+        } else {
+          doc.setFont("georgia", "normal")
+        }
         return
       } catch (error) {
         // Fallback to times if Georgia not available
-        doc.setFont("times", style === "bold" ? "bold" : "normal")
+        if (style === "italic") {
+          doc.setFont("times", "italic")
+        } else if (style === "bold") {
+          doc.setFont("times", "bold")
+        } else if (style === "bolditalic") {
+          doc.setFont("times", "bolditalic")
+        } else {
+          doc.setFont("times", "normal")
+        }
         return
       }
     }
@@ -101,10 +141,26 @@ function setFont(doc: jsPDF, fontName: string, style = "normal") {
       ? fontName.toLowerCase()
       : "helvetica"
 
-    doc.setFont(safeFont, style === "bold" ? "bold" : "normal")
+    if (style === "italic") {
+      doc.setFont(safeFont, "italic")
+    } else if (style === "bold") {
+      doc.setFont(safeFont, "bold")
+    } else if (style === "bolditalic") {
+      doc.setFont(safeFont, "bolditalic")
+    } else {
+      doc.setFont(safeFont, "normal")
+    }
   } catch (error) {
-    console.warn(`Failed to set font ${fontName}, falling back to helvetica:`, error)
-    doc.setFont("helvetica", style === "bold" ? "bold" : "normal")
+    console.warn(`Failed to set font ${fontName} with style ${style}, falling back to helvetica:`, error)
+    if (style === "italic") {
+      doc.setFont("helvetica", "italic")
+    } else if (style === "bold") {
+      doc.setFont("helvetica", "bold")
+    } else if (style === "bolditalic") {
+      doc.setFont("helvetica", "bolditalic")
+    } else {
+      doc.setFont("helvetica", "normal")
+    }
   }
 }
 
@@ -573,16 +629,174 @@ async function processContentForExport(content: string): Promise<string> {
   return processedContent
 }
 
-// Clean markdown text for rendering
-function cleanMarkdown(text: string): string {
-  // Remove bold and italic markers but keep the text
-  const cleaned = text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
+// Process markdown formatting and return segments with formatting info
+function processMarkdownFormatting(
+  text: string,
+): Array<{ text: string; bold?: boolean; italic?: boolean; code?: boolean }> {
+  const segments: Array<{ text: string; bold?: boolean; italic?: boolean; code?: boolean }> = []
+  let currentIndex = 0
 
-  // For inline code, we'll handle it differently - keep backticks for now
-  // This will be processed separately in the text rendering
+  // Find all formatting markers in order
+  const markers = []
 
-  return cleaned
+  // Bold markers (**text** or __text__)
+  let boldMatch
+  const boldRegex = /(\*\*|__)([^*_]+)\1/g
+  while ((boldMatch = boldRegex.exec(text)) !== null) {
+    markers.push({
+      start: boldMatch.index,
+      end: boldMatch.index + boldMatch[0].length,
+      text: boldMatch[2],
+      type: "bold",
+    })
+  }
+
+  // Italic markers (*text* or _text_)
+  let italicMatch
+  const italicRegex = /(?<!\*)\*([^*]+)\*(?!\*)|(?<!_)_([^_]+)_(?!_)/g
+  while ((italicMatch = italicRegex.exec(text)) !== null) {
+    markers.push({
+      start: italicMatch.index,
+      end: italicMatch.index + italicMatch[0].length,
+      text: italicMatch[1] || italicMatch[2],
+      type: "italic",
+    })
+  }
+
+  // Inline code markers (`text`)
+  let codeMatch
+  const codeRegex = /`([^`]+)`/g
+  while ((codeMatch = codeRegex.exec(text)) !== null) {
+    markers.push({
+      start: codeMatch.index,
+      end: codeMatch.index + codeMatch[0].length,
+      text: codeMatch[1],
+      type: "code",
+    })
+  }
+
+  // Sort markers by position
+  markers.sort((a, b) => a.start - b.start)
+
+  // Process text with markers
+  for (const marker of markers) {
+    // Add any text before this marker
+    if (currentIndex < marker.start) {
+      const beforeText = text.substring(currentIndex, marker.start)
+      if (beforeText) {
+        segments.push({ text: beforeText })
+      }
+    }
+
+    // Add the formatted text
+    const segment: any = { text: marker.text }
+    if (marker.type === "bold") segment.bold = true
+    if (marker.type === "italic") segment.italic = true
+    if (marker.type === "code") segment.code = true
+
+    segments.push(segment)
+    currentIndex = marker.end
+  }
+
+  // Add any remaining text
+  if (currentIndex < text.length) {
+    const remainingText = text.substring(currentIndex)
+    if (remainingText) {
+      segments.push({ text: remainingText })
+    }
+  }
+
+  // If no markers found, return the whole text as one segment
+  if (segments.length === 0) {
+    segments.push({ text })
+  }
+
+  return segments
 }
+
+// Enhanced function to render formatted text
+function renderFormattedText(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  fontSettings: FontSettings,
+  pageHeight: number,
+  margin: number,
+  baseAlign: "left" | "center" | "right" = "left",
+): number {
+  const segments = processMarkdownFormatting(text)
+  let currentX = x
+  let currentY = y
+  const lineHeight = 6 // Consistent with main text rendering
+
+  for (const segment of segments) {
+    // Set font based on formatting
+    let fontStyle = "normal"
+    let fontSize = fontSettings.bodyFontSize
+    let fontFamily = fontSettings.bodyFont
+
+    if (segment.bold && segment.italic) {
+      fontStyle = "bolditalic"
+    } else if (segment.bold) {
+      fontStyle = "bold"
+    } else if (segment.italic) {
+      fontStyle = "italic"
+    }
+
+    if (segment.code) {
+      fontFamily = "courier"
+      fontSize = fontSettings.smallFontSize
+      // Add background for inline code
+      doc.setFillColor(248, 248, 248)
+      const textWidth = doc.getTextWidth(segment.text)
+      doc.rect(currentX - 1, currentY - 3, textWidth + 2, fontSize * 0.4, "F")
+    }
+
+    doc.setFontSize(fontSize)
+    setFont(doc, fontFamily, fontStyle)
+
+    // Handle text wrapping
+    const words = segment.text.split(" ")
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i] + (i < words.length - 1 ? " " : "")
+      const wordWidth = doc.getTextWidth(word)
+
+      // Check if word fits on current line
+      if (currentX + wordWidth > x + maxWidth) {
+        // Move to next line
+        currentY += lineHeight
+        currentX = x
+
+        // Check if we need a new page
+        if (currentY + lineHeight > pageHeight - margin) {
+          doc.addPage()
+          currentY = margin
+          // Reset font after page break
+          setFont(doc, fontFamily, fontStyle)
+        }
+      }
+
+      doc.text(word, currentX, currentY)
+      currentX += wordWidth
+    }
+  }
+
+  return currentY
+}
+
+// Clean markdown text for rendering
+// function cleanMarkdown(text: string): string {
+//   // Remove bold and italic markers but keep the text
+//   const cleaned = text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
+
+//   // For inline code, we'll handle it differently - keep backticks for now
+//   // This will be processed separately in the text rendering
+
+//   return cleaned
+// }
 
 // Render a table in PDF - simplified version for less ink usage
 function renderTable(
@@ -637,7 +851,7 @@ function renderTable(
 
   // Pre-process all header cells to determine header row height
   columns.forEach((col, colIndex) => {
-    const colText = cleanMarkdown(col)
+    const colText = col
     const headerLines = doc.splitTextToSize(colText, columnWidth - cellPadding * 2)
     headerLinesArray.push(headerLines)
 
@@ -709,7 +923,7 @@ function renderTable(
     // Pre-process all cells to determine row height
     cells.forEach((cell, colIndex) => {
       if (colIndex < columns.length) {
-        const cellText = cleanMarkdown(cell)
+        const cellText = cell
         const cellLines = doc.splitTextToSize(cellText, columnWidth - cellPadding * 2)
         cellLinesArray.push(cellLines)
 
@@ -735,7 +949,7 @@ function renderTable(
 
       // Pre-process all header cells to determine header row height
       columns.forEach((col, colIndex) => {
-        const colText = cleanMarkdown(col)
+        const colText = col
         const headerLines = doc.splitTextToSize(colText, columnWidth - cellPadding * 2)
         headerLinesArray.push(headerLines)
 
@@ -858,7 +1072,7 @@ function renderList(
   fontSettings: FontSettings,
 ): number {
   let currentY = y
-  const lineHeight = 6 // Consistent line height
+  const lineHeight = 6 // Same as regular text line height
   const indent = 5
 
   // Use body font for list content
@@ -881,27 +1095,26 @@ function renderList(
     const markerWidth = doc.getTextWidth(isNumbered ? `${marker} ` : `${marker}  `)
 
     // Draw the marker
-    doc.text(marker, x, currentY + 2)
+    doc.text(marker, x, currentY)
 
-    // Draw the list item text with wrapping
-    const itemText = cleanMarkdown(item.trim())
-    const textLines = doc.splitTextToSize(itemText, maxWidth - markerWidth - indent)
+    // Draw the list item text with formatting
+    const itemText = item.trim()
+    const itemEndY = renderFormattedText(
+      doc,
+      itemText,
+      x + markerWidth + indent,
+      currentY,
+      maxWidth - markerWidth - indent,
+      fontSettings,
+      pageHeight,
+      margin,
+    )
 
-    // Check if we need to split across pages
-    for (let lineIndex = 0; lineIndex < textLines.length; lineIndex++) {
-      if (currentY + lineHeight > pageHeight - margin) {
-        doc.addPage()
-        currentY = margin
-        // Reset font after page break
-        setFont(doc, fontSettings.bodyFont, "normal")
-      }
-
-      doc.text(textLines[lineIndex], x + markerWidth + indent, currentY + 2)
-      currentY += lineHeight
-    }
+    // Move to next line with consistent spacing
+    currentY = itemEndY + lineHeight * 0.1 // Very small spacing between list items, same as paragraphs
   }
 
-  return currentY + 2
+  return currentY + lineHeight * 0.3 // Same spacing after list as after paragraphs
 }
 
 // Fix the renderCodeBlock function to ensure Courier font is properly applied
@@ -1019,7 +1232,7 @@ function renderCodeBlock(
   return finalY
 }
 
-// Render markdown content with improved formatting
+// Replace the renderMarkdownContent function with this updated version that uses the improved list rendering
 function renderMarkdownContent(
   doc: jsPDF,
   markdownText: string,
@@ -1080,17 +1293,47 @@ function renderMarkdownContent(
       continue
     }
 
-    // Lists
+    // Lists - improved parsing
     if (line.match(/^[-*]\s/) || line.match(/^\d+\.\s/)) {
       const listItems: string[] = []
       const isNumbered = line.match(/^\d+\.\s/) !== null
-      while (i < lines.length && (lines[i].trim().match(/^[-*]\s/) || lines[i].trim().match(/^\d+\.\s/))) {
-        const listItem = lines[i].replace(/^[-*\d+.]\s+/, "")
-        listItems.push(listItem)
-        i++
+
+      // Add the current line to the list
+      const currentItem = line.replace(/^[-*\d+.]\s+/, "").trim()
+      if (currentItem) {
+        listItems.push(currentItem)
       }
-      i-- // Adjust for the outer loop increment
-      currentY = renderList(doc, listItems, x, currentY, maxWidth, isNumbered, pageHeight, margin, fontSettings)
+
+      // Look ahead for more list items
+      let j = i + 1
+      while (j < lines.length) {
+        const nextLine = lines[j].trim()
+        if (nextLine === "") {
+          j++
+          continue // Skip empty lines within lists
+        }
+
+        // Check if it's another list item of the same type
+        const isNextNumbered = nextLine.match(/^\d+\.\s/) !== null
+        const isNextBullet = nextLine.match(/^[-*]\s/) !== null
+
+        if ((isNumbered && isNextNumbered) || (!isNumbered && isNextBullet)) {
+          const nextItem = nextLine.replace(/^[-*\d+.]\s+/, "").trim()
+          if (nextItem) {
+            listItems.push(nextItem)
+          }
+          j++
+        } else {
+          break // End of list
+        }
+      }
+
+      i = j - 1 // Update the main loop counter
+
+      if (listItems.length > 0) {
+        // Use the fixed renderListFixed function instead
+        currentY = renderListFixed(doc, listItems, x, currentY, maxWidth, isNumbered, pageHeight, margin, fontSettings)
+      }
       continue
     }
 
@@ -1164,11 +1407,100 @@ function renderMarkdownContent(
       continue
     }
 
-    // Regular text
-    const textLines = doc.splitTextToSize(line, maxWidth)
+    // Horizontal rules
+    if (line.match(/^---+$/) || line.match(/^\*\*\*+$/) || line.match(/^___+$/)) {
+      currentY += lineHeight * 0.5
 
-    for (const textLine of textLines) {
       // Check if we need a new page
+      if (currentY + lineHeight > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin
+      }
+
+      // Draw horizontal line
+      doc.setDrawColor(180, 180, 180)
+      doc.setLineWidth(0.5)
+      doc.line(x, currentY, x + maxWidth, currentY)
+
+      currentY += lineHeight * 0.5
+      continue
+    }
+
+    // Handle links first
+    let processedLine = line
+
+    // Convert markdown links to plain text with indication
+    processedLine = processedLine.replace(/\[([^\]]+)\]$$([^)]+)$$/g, "$1 ($2)")
+
+    // Handle strikethrough
+    processedLine = processedLine.replace(/~~([^~]+)~~/g, "$1")
+
+    // Regular text with formatting
+    currentY = renderFormattedText(doc, processedLine, x, currentY + 2, maxWidth, fontSettings, pageHeight, margin)
+
+    currentY += lineHeight * 0.3 // Add small spacing between paragraphs
+  }
+
+  return currentY
+}
+
+// Add this completely new function to fix list rendering
+function renderListFixed(
+  doc: jsPDF,
+  listItems: string[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  isNumbered: boolean,
+  pageHeight: number,
+  margin: number,
+  fontSettings: FontSettings,
+): number {
+  let currentY = y
+  const lineHeight = 6 // Same as regular text line height
+  const indent = 8 // Slightly larger indent for better readability
+
+  // Use body font for list content
+  doc.setFontSize(fontSettings.bodyFontSize)
+  setFont(doc, fontSettings.bodyFont, "normal")
+
+  for (let index = 0; index < listItems.length; index++) {
+    const item = listItems[index].trim()
+
+    // Skip empty items
+    if (!item) continue
+
+    // Check if we need a new page
+    if (currentY + lineHeight > pageHeight - margin) {
+      doc.addPage()
+      currentY = margin
+      // Reset font after page break
+      setFont(doc, fontSettings.bodyFont, "normal")
+    }
+
+    // Create bullet or number
+    const marker = isNumbered ? `${index + 1}.` : "•"
+
+    // Calculate marker width
+    const markerWidth = doc.getTextWidth(marker) + 2
+
+    // Draw the marker
+    doc.text(marker, x, currentY)
+
+    // Calculate available width for the item text
+    const itemTextWidth = maxWidth - markerWidth - indent
+
+    // Split the item text into lines that fit
+    const itemLines = doc.splitTextToSize(item, itemTextWidth)
+
+    // Draw the first line of the item
+    doc.text(itemLines[0], x + markerWidth + indent, currentY)
+
+    // Draw any additional lines with proper indentation
+    for (let lineIndex = 1; lineIndex < itemLines.length; lineIndex++) {
+      currentY += lineHeight
+
+      // Check if we need a new page for continuation lines
       if (currentY + lineHeight > pageHeight - margin) {
         doc.addPage()
         currentY = margin
@@ -1176,12 +1508,14 @@ function renderMarkdownContent(
         setFont(doc, fontSettings.bodyFont, "normal")
       }
 
-      doc.text(textLine, x, currentY + 2)
-      currentY += lineHeight
+      doc.text(itemLines[lineIndex], x + markerWidth + indent, currentY)
     }
+
+    // Move to the next list item
+    currentY += lineHeight + 2 // Add extra space between list items
   }
 
-  return currentY
+  return currentY + 4 // Add space after the entire list
 }
 
 // Add images to PDF with proper processing
@@ -1323,4 +1657,77 @@ async function addImagesToPdf(
   }
 
   return currentY
+}
+
+// Render a list in PDF - improved version
+function renderListImproved(
+  doc: jsPDF,
+  listItems: string[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  isNumbered: boolean,
+  pageHeight: number,
+  margin: number,
+  fontSettings: FontSettings,
+): number {
+  let currentY = y
+  const lineHeight = 6 // Same as regular text line height
+  const indent = 8 // Slightly larger indent for better readability
+
+  // Use body font for list content
+  doc.setFontSize(fontSettings.bodyFontSize)
+  setFont(doc, fontSettings.bodyFont, "normal")
+
+  for (let index = 0; index < listItems.length; index++) {
+    const item = listItems[index]
+
+    // Check if we need a new page
+    if (currentY + lineHeight > pageHeight - margin) {
+      doc.addPage()
+      currentY = margin
+      // Reset font after page break
+      setFont(doc, fontSettings.bodyFont, "normal")
+    }
+
+    // Create bullet or number
+    const marker = isNumbered ? `${index + 1}.` : "•"
+
+    // Calculate marker width more accurately
+    const markerText = isNumbered ? `${marker} ` : `${marker}  `
+    const markerWidth = doc.getTextWidth(markerText)
+
+    // Draw the marker
+    doc.text(marker, x, currentY)
+
+    // Calculate available width for the item text
+    const itemTextWidth = maxWidth - markerWidth - indent
+
+    // Split the item text into lines that fit
+    const itemLines = doc.splitTextToSize(item, itemTextWidth)
+
+    // Draw each line of the item
+    for (let lineIndex = 0; lineIndex < itemLines.length; lineIndex++) {
+      // Check if we need a new page for continuation lines
+      if (currentY + lineHeight > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin
+        // Reset font after page break
+        setFont(doc, fontSettings.bodyFont, "normal")
+      }
+
+      const textX = x + markerWidth + indent
+      doc.text(itemLines[lineIndex], textX, currentY)
+
+      // Only move to next line if there are more lines for this item
+      if (lineIndex < itemLines.length - 1) {
+        currentY += lineHeight
+      }
+    }
+
+    // Move to next list item with consistent spacing
+    currentY += lineHeight + 1 // Small gap between list items
+  }
+
+  return currentY + 3 // Small spacing after the entire list
 }
