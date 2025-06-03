@@ -33,7 +33,11 @@ export function WysimarkEditor({ value, onChange, placeholder, className }: Wysi
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder || "Enter your markdown notes here..."}
-        className="w-full h-full min-h-[300px] text-base leading-relaxed"
+        className="w-full h-full min-h-[300px] text-base leading-relaxed font-mono"
+        style={{
+          fontFamily:
+            "ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Menlo, 'Roboto Mono', 'Ubuntu Mono', 'Liberation Mono', 'Courier New', Courier, monospace",
+        }}
       />
     </div>
   )

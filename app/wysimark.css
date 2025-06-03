@@ -12,10 +12,12 @@
   resize: none;
   padding: 1rem;
   line-height: 1.5;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, "Roboto Mono", "Ubuntu Mono", "Liberation Mono",
+    "Courier New", Courier, monospace !important;
   background-color: var(--background);
   color: var(--foreground);
   border: 1px solid var(--border);
+  font-size: 0.875rem;
 }
 
 .editor-container textarea:focus {

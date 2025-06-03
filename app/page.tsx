@@ -162,15 +162,15 @@ export default function LibraryPage() {
   }
 
   const handleExportAll = async () => {
-    if (allDocuments.length === 0) {
+    if (filteredDocuments.length === 0) {
       alert("No documents to export.")
       return
     }
 
     setIsExporting(true)
     try {
-      await exportAllToZip()
-      alert(`Successfully exported ${allDocuments.length} notes`)
+      await exportAllToZip(filteredDocuments)
+      alert(`Successfully exported ${filteredDocuments.length} notes`)
     } catch (error) {
       console.error("Export failed:", error)
       alert(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
@@ -424,7 +424,11 @@ export default function LibraryPage() {
             <div className="mt-6 pt-4 border-t border-border space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" size="sm" onClick={handleExportAll} disabled={isExporting}>
-                  {isExporting ? "Exporting..." : "Export All"}
+                  {isExporting
+                    ? "Exporting..."
+                    : filteredDocuments.length === allDocuments.length
+                      ? "Export All"
+                      : `Export ${filteredDocuments.length}`}
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleImportClick} disabled={isImporting}>
                   {isImporting ? "Importing..." : "Import"}

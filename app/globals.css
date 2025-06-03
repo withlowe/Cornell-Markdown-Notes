@@ -170,3 +170,44 @@
   margin: 1rem 0 !important;
   object-fit: contain !important;
 }
+
+/* Monospace font styling for code blocks */
+.font-mono,
+code,
+pre,
+.markdown-content code,
+.markdown-content pre,
+.html-content code,
+.html-content pre {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, "Roboto Mono", "Ubuntu Mono", "Liberation Mono",
+    "Courier New", Courier, monospace !important;
+  font-variant-ligatures: none;
+  font-feature-settings: normal;
+}
+
+/* Ensure code blocks have proper spacing and appearance */
+.markdown-content pre,
+.html-content pre {
+  background-color: hsl(var(--muted));
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.markdown-content code:not(pre code),
+.html-content code:not(pre code) {
+  background-color: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* Ensure code blocks in tables also use monospace */
+.markdown-content table code,
+.html-content table code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, "Roboto Mono", "Ubuntu Mono", "Liberation Mono",
+    "Courier New", Courier, monospace !important;
+}

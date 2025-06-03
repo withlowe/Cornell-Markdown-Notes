@@ -1,5 +1,5 @@
 import JSZip from "jszip"
-import { getAllDocuments, saveDocument } from "./storage-utils"
+import { getAllDocuments, saveDocument, type DocumentData } from "./storage-utils"
 
 // Helper function to download a blob
 function downloadBlob(blob: Blob, filename: string) {
@@ -21,10 +21,10 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 // Export all notes as markdown files in a zip
-export async function exportAllToZip(): Promise<void> {
-  const documents = getAllDocuments()
+export async function exportAllToZip(documents?: DocumentData[]): Promise<void> {
+  const docs = documents || getAllDocuments()
 
-  if (documents.length === 0) {
+  if (docs.length === 0) {
     throw new Error("No documents to export")
   }
 
@@ -34,7 +34,7 @@ export async function exportAllToZip(): Promise<void> {
   const notesFolder = zip.folder("notes")
 
   // Add each document as a markdown file
-  documents.forEach((doc) => {
+  docs.forEach((doc) => {
     // Create a safe filename
     const filename = `${doc.title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${doc.id.substring(0, 8)}.md`
 
