@@ -164,46 +164,59 @@ function setFont(doc: jsPDF, fontName: string, style = "normal") {
   }
 }
 
-// Function to estimate section height
+// Function to estimate section height - more conservative for better space utilization
 function estimateSectionHeight(section: Section, fontSettings: FontSettings, maxWidth: number): number {
   const lines = section.content.split("\n")
   const lineHeight = 6
   let estimatedHeight = 0
 
-  // Add heading height
-  const headingLines = Math.ceil(section.heading.length / 30) // Rough estimate
-  estimatedHeight += headingLines * lineHeight + 10
+  // Add heading height (conservative estimate)
+  const headingLines = Math.ceil(section.heading.length / 30) // Conservative character count
+  estimatedHeight += headingLines * lineHeight + 6 // Reduced padding
 
-  // Estimate content height
+  // Count actual content lines more accurately
+  let contentLines = 0
+  let hasImages = false
+  let hasCodeBlocks = false
+  let hasTables = false
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
 
     if (line === "") {
-      estimatedHeight += lineHeight / 3
+      contentLines += 0.2 // Minimal space for empty lines
       continue
     }
 
-    // Tables
+    // Images - just count them, don't estimate height here
+    if (line.includes("<img")) {
+      hasImages = true
+      continue
+    }
+
+    // Tables - more accurate estimation
     if (line.startsWith("|") && line.endsWith("|")) {
+      hasTables = true
       let tableRows = 0
       while (i < lines.length && lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
         tableRows++
         i++
       }
       i-- // Adjust for the outer loop increment
-      estimatedHeight += tableRows * 8 + 10 // 8mm per row + padding
+      contentLines += tableRows * 1.2 // More conservative table estimation
       continue
     }
 
     // Code blocks
     if (line.startsWith("```")) {
+      hasCodeBlocks = true
       let codeLines = 0
       i++ // Skip opening \`\`\`
       while (i < lines.length && !lines[i].trim().startsWith("```")) {
         codeLines++
         i++
       }
-      estimatedHeight += codeLines * lineHeight + 10
+      contentLines += codeLines * 0.8 + 1.5 // More conservative code block estimation
       continue
     }
 
@@ -215,7 +228,7 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
         i++
       }
       i-- // Adjust for the outer loop increment
-      estimatedHeight += listItems * lineHeight + 5
+      contentLines += listItems * 1.1 // Conservative list estimation
       continue
     }
 
@@ -227,24 +240,41 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
         i++
       }
       i-- // Adjust for the outer loop increment
-      estimatedHeight += quoteLines * lineHeight + 5
+      contentLines += quoteLines * 1.1
       continue
     }
 
     // Headings
     if (line.match(/^#{2,6}\s/)) {
-      estimatedHeight += lineHeight * 1.5 + 5
+      contentLines += 1.5 // Conservative heading height
       continue
     }
 
-    // Regular text - estimate based on character count and width
-    const textLines = Math.ceil(line.length / 80) // Rough estimate of characters per line
-    estimatedHeight += textLines * lineHeight + 2
+    // Regular text - conservative estimation
+    const avgCharsPerLine = 75 // Conservative estimate
+    const textLines = Math.ceil(line.length / avgCharsPerLine)
+    contentLines += textLines
   }
 
-  // Add some padding for images (rough estimate)
-  const imageCount = (section.content.match(/<img/g) || []).length
-  estimatedHeight += imageCount * 40 // Rough estimate for images
+  // Convert content lines to height
+  estimatedHeight += contentLines * lineHeight
+
+  // Add conservative estimates for special content
+  if (hasImages) {
+    const imageCount = (section.content.match(/<img/g) || []).length
+    estimatedHeight += imageCount * 30 // Conservative image height
+  }
+
+  if (hasCodeBlocks) {
+    estimatedHeight += 10 // Extra padding for code blocks
+  }
+
+  if (hasTables) {
+    estimatedHeight += 8 // Extra padding for tables
+  }
+
+  // Minimal buffer
+  estimatedHeight += 5
 
   return estimatedHeight
 }
@@ -330,19 +360,33 @@ export async function exportToPdf(
         continue
       }
 
-      // Estimate section height
+      // More flexible page break logic - prioritize space utilization
       const estimatedSectionHeight = estimateSectionHeight(section, fontSettings, contentWidth - 10)
       const availableSpace = pageHeight - margin - y
 
-      // Only start a new page if the section won't fit on the current page
-      // and we're not already at the top of a page, and the section has substantial content
-      if (y > margin + 30 && estimatedSectionHeight > availableSpace && estimatedSectionHeight > 40) {
+      // Calculate how much of the section would fit on current page
+      const wouldFitPercentage = availableSpace / estimatedSectionHeight
+
+      // Only start a new page if:
+      // 1. We're not already at the top of a page (y > margin + 40)
+      // 2. AND one of these conditions is met:
+      //    a) Very large section (>80mm) with very little space (<25% fit)
+      //    b) Medium section (>50mm) with little space (<20% fit)
+      //    c) Any section with extremely little space (<15% fit) and available space < 40mm
+      const isAtTopOfPage = y <= margin + 40
+      const isVeryLargeSection = estimatedSectionHeight > 80 && wouldFitPercentage < 0.25
+      const isMediumSectionWithLittleSpace = estimatedSectionHeight > 50 && wouldFitPercentage < 0.2
+      const isAnyContentWithTinySpace = wouldFitPercentage < 0.15 && availableSpace < 40
+
+      const shouldBreakPage =
+        !isAtTopOfPage && (isVeryLargeSection || isMediumSectionWithLittleSpace || isAnyContentWithTinySpace)
+
+      if (shouldBreakPage) {
         console.log(
-          `Section "${section.heading}" estimated height: ${estimatedSectionHeight}mm, available space: ${availableSpace}mm - starting new page`,
+          `Section "${section.heading}" estimated height: ${estimatedSectionHeight}mm, available space: ${availableSpace}mm, fit percentage: ${(wouldFitPercentage * 100).toFixed(1)}% - starting new page`,
         )
         doc.addPage()
-        y = margin
-        y += 8
+        y = margin + 8
       }
 
       const startY = y
@@ -1569,7 +1613,7 @@ function renderListFixed(
   return currentY + 4 // Add space after the entire list
 }
 
-// Add images to PDF with proper processing - FIXED to not auto-place on next page
+// Add images to PDF with proper processing - IMPROVED to better utilize page space
 async function addImagesToPdf(
   doc: jsPDF,
   markdownText: string,
@@ -1630,40 +1674,65 @@ async function addImagesToPdf(
         // Calculate the aspect ratio
         const aspectRatio = imgWidth / imgHeight
 
-        // Calculate dimensions to fit within maxWidth
-        let displayWidth = maxWidth
-        let displayHeight = displayWidth / aspectRatio
+        // Calculate ideal dimensions to fit within maxWidth
+        let idealWidth = maxWidth
+        let idealHeight = idealWidth / aspectRatio
 
-        // If height is too large, scale down based on height
-        const maxImageHeight = 80 // Maximum height in mm
-        if (displayHeight > maxImageHeight) {
-          displayHeight = maxImageHeight
-          displayWidth = displayHeight * aspectRatio
+        // Set reasonable maximum height (about 1/3 of page height)
+        const maxImageHeight = (pageHeight - margin * 2) * 0.4
+
+        // If ideal height is too large, scale down based on height
+        if (idealHeight > maxImageHeight) {
+          idealHeight = maxImageHeight
+          idealWidth = idealHeight * aspectRatio
         }
 
         // Add some space before the image
-        currentY += 5
+        currentY += 3
 
         // Calculate available space on current page
-        const availableSpace = pageHeight - margin - currentY - 10 // Leave some bottom margin
+        const availableSpace = pageHeight - margin - currentY - 5 // Leave small bottom margin
 
-        // If image is too tall for available space, scale it down to fit (but don't move to next page)
-        if (displayHeight > availableSpace && availableSpace > 15) {
-          // Scale down the image to fit the available space
-          const scaleFactor = Math.min(1, availableSpace / displayHeight)
-          displayHeight = displayHeight * scaleFactor
-          displayWidth = displayWidth * scaleFactor
+        // Determine final image dimensions based on available space
+        let displayWidth = idealWidth
+        let displayHeight = idealHeight
+
+        // Only scale down if the image is significantly larger than available space
+        if (idealHeight > availableSpace) {
+          // Check if we have reasonable space to work with (at least 30mm)
+          if (availableSpace >= 30) {
+            // Scale the image to fit the available space
+            displayHeight = Math.min(idealHeight, availableSpace - 5) // Leave 5mm buffer
+            displayWidth = displayHeight * aspectRatio
+          } else {
+            // Very little space left - move to new page for better presentation
+            doc.addPage()
+            currentY = margin + 3
+
+            // Recalculate available space on new page
+            const newPageAvailableSpace = pageHeight - margin - currentY - 5
+
+            // Use ideal dimensions if they fit, otherwise scale to fit new page
+            if (idealHeight <= newPageAvailableSpace) {
+              displayHeight = idealHeight
+              displayWidth = idealWidth
+            } else {
+              displayHeight = Math.min(idealHeight, newPageAvailableSpace - 5)
+              displayWidth = displayHeight * aspectRatio
+            }
+          }
         }
 
-        // Ensure minimum readable size - if too small, keep original size and let it overflow
-        const minImageHeight = 20 // Minimum height in mm
-        if (displayHeight < minImageHeight && availableSpace > minImageHeight) {
-          // Restore original size if scaled too small
-          displayWidth = maxWidth
-          displayHeight = displayWidth / aspectRatio
-          if (displayHeight > maxImageHeight) {
-            displayHeight = maxImageHeight
-            displayWidth = displayHeight * aspectRatio
+        // Ensure minimum readable size - if too small after scaling, use more space
+        const minImageHeight = 25 // Minimum height in mm for readability
+        if (displayHeight < minImageHeight && availableSpace >= minImageHeight + 10) {
+          displayHeight = minImageHeight
+          displayWidth = displayHeight * aspectRatio
+
+          // If width exceeds maxWidth after minimum height adjustment, scale back proportionally
+          if (displayWidth > maxWidth) {
+            displayWidth = maxWidth
+            displayHeight = displayWidth / aspectRatio
           }
         }
 
@@ -1671,12 +1740,15 @@ async function addImagesToPdf(
         try {
           doc.addImage(imageData, "JPEG", x, currentY, displayWidth, displayHeight)
 
+          currentY += displayHeight
+
           // Add alt text below the image if it exists and is meaningful
           if (altText && altText !== "Image" && altText.length > 0) {
-            currentY += displayHeight + 3
+            currentY += 2
 
             // Check if we need a new page for the caption
-            if (currentY + 6 > pageHeight - margin) {
+            const captionHeight = 8 // Estimated height for caption
+            if (currentY + captionHeight > pageHeight - margin) {
               doc.addPage()
               currentY = margin
             }
@@ -1687,6 +1759,14 @@ async function addImagesToPdf(
 
             const captionLines = doc.splitTextToSize(`Figure: ${altText}`, maxWidth)
             for (let i = 0; i < captionLines.length; i++) {
+              // Check for page break on each caption line
+              if (currentY + 5 > pageHeight - margin) {
+                doc.addPage()
+                currentY = margin
+                // Reset font after page break
+                setFont(doc, fontSettings.bodyFont, "italic")
+              }
+
               doc.text(captionLines[i], x, currentY)
               currentY += 5
             }
@@ -1695,12 +1775,10 @@ async function addImagesToPdf(
             doc.setTextColor(0, 0, 0)
             doc.setFontSize(fontSettings.bodyFontSize)
             setFont(doc, fontSettings.bodyFont, "normal")
-          } else {
-            currentY += displayHeight
           }
 
           // Add some space after the image
-          currentY += 5
+          currentY += 4
         } catch (imageError) {
           console.error(`Error adding image to PDF:`, imageError)
           // Add a placeholder text instead
