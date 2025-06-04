@@ -325,8 +325,8 @@ export async function exportToPdf(
     for (let index = 0; index < sections.length; index++) {
       const section = sections[index]
 
-      // Skip sections with empty content
-      if (!section.content.trim()) {
+      // Skip sections with empty content or only whitespace
+      if (!section.content.trim() || section.content.replace(/<img[^>]*>/g, "").trim() === "") {
         continue
       }
 
@@ -335,8 +335,8 @@ export async function exportToPdf(
       const availableSpace = pageHeight - margin - y
 
       // Only start a new page if the section won't fit on the current page
-      // and we're not already at the top of a page
-      if (y > margin + 20 && estimatedSectionHeight > availableSpace) {
+      // and we're not already at the top of a page, and the section has substantial content
+      if (y > margin + 30 && estimatedSectionHeight > availableSpace && estimatedSectionHeight > 40) {
         console.log(
           `Section "${section.heading}" estimated height: ${estimatedSectionHeight}mm, available space: ${availableSpace}mm - starting new page`,
         )
@@ -1644,16 +1644,27 @@ async function addImagesToPdf(
         // Add some space before the image
         currentY += 5
 
-        // Calculate if the image will fit on the current page
-        const imageSpaceNeeded = displayHeight + 10 // Image height plus some padding
-        const availableSpace = pageHeight - margin - currentY
+        // Calculate available space on current page
+        const availableSpace = pageHeight - margin - currentY - 10 // Leave some bottom margin
 
-        // Only start a new page if the image actually won't fit
-        if (imageSpaceNeeded > availableSpace && currentY > margin + 20) {
-          // Only move to next page if we're not already near the top of the page
-          // and the image truly won't fit
-          doc.addPage()
-          currentY = margin
+        // If image is too tall for available space, scale it down to fit (but don't move to next page)
+        if (displayHeight > availableSpace && availableSpace > 15) {
+          // Scale down the image to fit the available space
+          const scaleFactor = Math.min(1, availableSpace / displayHeight)
+          displayHeight = displayHeight * scaleFactor
+          displayWidth = displayWidth * scaleFactor
+        }
+
+        // Ensure minimum readable size - if too small, keep original size and let it overflow
+        const minImageHeight = 20 // Minimum height in mm
+        if (displayHeight < minImageHeight && availableSpace > minImageHeight) {
+          // Restore original size if scaled too small
+          displayWidth = maxWidth
+          displayHeight = displayWidth / aspectRatio
+          if (displayHeight > maxImageHeight) {
+            displayHeight = maxImageHeight
+            displayWidth = displayHeight * aspectRatio
+          }
         }
 
         // Add the image to the PDF
