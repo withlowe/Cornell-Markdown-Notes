@@ -13,17 +13,9 @@ import { exportAllToZip, importMarkdownFiles } from "@/lib/export-import-utils"
 import { cn } from "@/lib/utils"
 import { CornellNotes } from "@/components/cornell-notes"
 import { RelatedNotes } from "@/components/related-notes"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { exportToPdf } from "@/lib/export-utils"
-import { ChevronDown, Search, X, Tag } from "lucide-react"
+import { ChevronDown, Search, X, Tag, Check } from "lucide-react"
+import { exportToAnki } from "@/lib/anki-export-utils"
 
 export default function LibraryPage() {
   const router = useRouter()
@@ -34,6 +26,13 @@ export default function LibraryPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isExportingAnki, setIsExportingAnki] = useState(false)
+
+  // Custom dropdown state
+  const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false)
+  const [pdfDropdownOpen, setPdfDropdownOpen] = useState(false)
+  const tagsDropdownRef = useRef<HTMLDivElement>(null)
+  const pdfDropdownRef = useRef<HTMLDivElement>(null)
 
   // Compute filtered documents directly during render
   const filteredDocuments = useMemo(() => {
@@ -73,6 +72,23 @@ export default function LibraryPage() {
     const tags = allDocuments.flatMap((doc) => doc.tags)
     return [...new Set(tags)].sort()
   }, [allDocuments])
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (tagsDropdownRef.current && !tagsDropdownRef.current.contains(event.target as Node)) {
+        setTagsDropdownOpen(false)
+      }
+      if (pdfDropdownRef.current && !pdfDropdownRef.current.contains(event.target as Node)) {
+        setPdfDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   // Load documents on mount
   useEffect(() => {
@@ -216,6 +232,9 @@ export default function LibraryPage() {
       console.error("PDF export failed:", error)
       alert(`PDF export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
+
+    // Close the dropdown after export
+    setPdfDropdownOpen(false)
   }
 
   const handleNoteLinkClick = (title: string) => {
@@ -275,6 +294,24 @@ export default function LibraryPage() {
     }
   }
 
+  const handleExportAnki = async () => {
+    if (!activeDocument) {
+      alert("Please select a document to export.")
+      return
+    }
+
+    setIsExportingAnki(true)
+    try {
+      await exportToAnki(activeDocument.title, activeDocument.summary || "", activeDocument.content)
+      alert(`Successfully exported "${activeDocument.title}" as Anki flashcards`)
+    } catch (error) {
+      console.error("Anki export failed:", error)
+      alert(`Anki export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+    } finally {
+      setIsExportingAnki(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -300,36 +337,46 @@ export default function LibraryPage() {
             )}
           </div>
 
-          {/* Tag Filter Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="default" className="gap-2 h-10">
-                <Tag className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {filterTags.length > 0 ? `${filterTags.length} tag${filterTags.length > 1 ? "s" : ""}` : "Tags"}
-                </span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 max-h-80 overflow-y-auto">
-              <DropdownMenuLabel>Filter by Tags</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {availableTags.length > 0 ? (
-                availableTags.map((tag) => (
-                  <DropdownMenuCheckboxItem
-                    key={tag}
-                    checked={filterTags.includes(tag)}
-                    onCheckedChange={() => handleTagSelect(tag)}
-                    className="uppercase"
-                  >
-                    {tag}
-                  </DropdownMenuCheckboxItem>
-                ))
-              ) : (
-                <DropdownMenuItem disabled>No tags available</DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Custom Tag Filter Dropdown */}
+          <div className="relative" ref={tagsDropdownRef}>
+            <Button
+              variant="outline"
+              size="default"
+              className="gap-2 h-10"
+              onClick={() => setTagsDropdownOpen(!tagsDropdownOpen)}
+            >
+              <Tag className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {filterTags.length > 0 ? `${filterTags.length} tag${filterTags.length > 1 ? "s" : ""}` : "Tags"}
+              </span>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+
+            {tagsDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1 w-56 max-h-80 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md z-50">
+                <div className="px-2 py-1.5 text-sm font-semibold">Filter by Tags</div>
+                <div className="-mx-1 my-1 h-px bg-muted"></div>
+                {availableTags.length > 0 ? (
+                  availableTags.map((tag) => (
+                    <div
+                      key={tag}
+                      className="relative flex cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground uppercase"
+                      onClick={() => handleTagSelect(tag)}
+                    >
+                      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                        {filterTags.includes(tag) && <Check className="h-4 w-4" />}
+                      </span>
+                      {tag}
+                    </div>
+                  ))
+                ) : (
+                  <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none opacity-50">
+                    No tags available
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Clear Filters */}
           {(searchQuery || filterTags.length > 0) && (
@@ -467,21 +514,44 @@ export default function LibraryPage() {
                   <Button variant="outline" size="sm" onClick={() => router.push(`/editor?id=${activeDocument.id}`)}>
                     Edit
                   </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        Export PDF
-                        <ChevronDown className="h-4 w-4 ml-2" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuLabel>Font Style</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleExportPdf("sans")}>Sans</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>Mixed</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+
+                  {/* Custom PDF Export Dropdown */}
+                  <div className="relative" ref={pdfDropdownRef}>
+                    <Button variant="outline" size="sm" onClick={() => setPdfDropdownOpen(!pdfDropdownOpen)}>
+                      Export PDF
+                      <ChevronDown className="h-4 w-4 ml-2" />
+                    </Button>
+
+                    {pdfDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-1 min-w-[8rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md z-50">
+                        <div className="px-2 py-1.5 text-sm font-semibold">Font Style</div>
+                        <div className="-mx-1 my-1 h-px bg-muted"></div>
+                        <div
+                          className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                          onClick={() => handleExportPdf("sans")}
+                        >
+                          Sans
+                        </div>
+                        <div
+                          className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                          onClick={() => handleExportPdf("serif")}
+                        >
+                          Serif
+                        </div>
+                        <div
+                          className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                          onClick={() => handleExportPdf("mixed")}
+                        >
+                          Mixed
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button variant="outline" size="sm" onClick={handleExportAnki} disabled={isExportingAnki}>
+                    {isExportingAnki ? "Exporting..." : "Export Anki"}
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"

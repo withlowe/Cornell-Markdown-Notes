@@ -12,20 +12,9 @@ import { TagInput } from "@/components/tag-input"
 import { TableGenerator } from "@/components/table-generator"
 import { ImageInserter } from "@/components/image-inserter"
 import { NoteLinkInput } from "@/components/note-link-input"
-import { exportToPdf } from "@/lib/export-utils"
 import { saveDocument, getDocument } from "@/lib/storage-utils"
 import { WysimarkEditor } from "@/components/wysimark-editor"
 import { Hash } from "lucide-react"
-import { exportToAnki } from "@/lib/anki-export-utils"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { ChevronDown } from "lucide-react"
 import { DiagramInserter } from "@/components/diagram-inserter"
 
 export default function NotesEditorPage() {
@@ -39,7 +28,6 @@ export default function NotesEditorPage() {
   const [isImageInserterOpen, setIsImageInserterOpen] = useState(false)
   const [isNoteLinkInputOpen, setIsNoteLinkInputOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isExportingAnki, setIsExportingAnki] = useState(false)
   const [isDiagramInserterOpen, setIsDiagramInserterOpen] = useState(false)
 
   // Check if we're editing an existing document or creating a new one with a title
@@ -108,16 +96,6 @@ Add your main ideas and concepts.`)
     }
   }
 
-  const handleExportPdf = async (font: "sans" | "serif" | "mixed") => {
-    try {
-      await exportToPdf(title, summary, markdown, font)
-      console.log("PDF exported successfully")
-    } catch (error) {
-      console.error("PDF export failed:", error)
-      alert(`PDF export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
-    }
-  }
-
   const handleInsertTable = (tableMarkdown: string) => {
     insertAtCursor(tableMarkdown)
   }
@@ -130,19 +108,6 @@ Add your main ideas and concepts.`)
   const handleInsertNoteLink = (linkText: string) => {
     insertAtCursor(linkText)
     setIsNoteLinkInputOpen(false)
-  }
-
-  const handleExportAnki = async () => {
-    setIsExportingAnki(true)
-    try {
-      await exportToAnki(title, summary, markdown)
-      console.log("Anki flashcards exported successfully")
-    } catch (error) {
-      console.error("Anki export failed:", error)
-      alert(`Anki export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
-    } finally {
-      setIsExportingAnki(false)
-    }
   }
 
   // Function to insert text at cursor position
@@ -269,8 +234,6 @@ Add your main ideas and concepts.`)
                   Use markdown headings (#) for key points. Link to other notes with [[Note Title]].
                 </div>
                 <div className="flex justify-between items-center mb-4">
-                  
-
                   <div className="flex flex-wrap gap-2 justify-between items-center">
                     <div className="flex gap-2 flex-wrap">
                       <Button size="default" variant="outline" onClick={() => insertAtCursor("# ")}>
@@ -305,7 +268,6 @@ Add your main ideas and concepts.`)
                     className="flex-1 min-h-0"
                   />
                 </div>
-                
               </CardContent>
             </Card>
 
@@ -320,24 +282,6 @@ Add your main ideas and concepts.`)
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="default" variant="outline">
-                  Export PDF
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>Font Style</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleExportPdf("sans")}>Sans</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportPdf("serif")}>Serif</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportPdf("mixed")}>Mixed</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button size="default" variant="outline" onClick={handleExportAnki} disabled={isExportingAnki}>
-              {isExportingAnki ? "Exporting..." : "Export Anki"}
-            </Button>
             <Button size="default" onClick={handleSave} disabled={isSaving}>
               {isSaving ? "Saving..." : "Save to Library"}
             </Button>

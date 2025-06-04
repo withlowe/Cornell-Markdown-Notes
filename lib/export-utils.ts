@@ -354,15 +354,17 @@ export async function exportToPdf(
       const headingLines = doc.splitTextToSize(section.heading, keyPointsWidth - 10)
 
       const headingLineHeight = 6 // Consistent line height
+      const headingTextStartY = y + 5 + 2 // This is where the heading text actually starts
       for (let i = 0; i < headingLines.length; i++) {
-        doc.text(headingLines[i], margin + 5, y + 5 + i * headingLineHeight + 2)
+        doc.text(headingLines[i], margin + 5, headingTextStartY + i * headingLineHeight)
       }
 
+      // Calculate the actual height of the heading
       const headingHeight = headingLines.length * headingLineHeight + 5
 
-      // Content area
+      // Content area - align with the baseline of the first line of heading text
       const contentStartX = margin + keyPointsWidth + 5
-      const contentStartY = y + 5
+      const contentStartY = headingTextStartY // Same baseline as the heading text
 
       // Pass section info and font settings to the rendering functions
       const sectionInfo = {
@@ -473,6 +475,13 @@ export async function exportToPdf(
         for (let i = 0; i < headingLines.length; i++) {
           doc.text(headingLines[i], margin + 5, margin + 5 + i * headingLineHeight + 2)
         }
+
+        // Add "(continued)" text in smaller, italic font
+        doc.setFontSize(fontSettings.smallFontSize)
+        setFont(doc, fontSettings.titleFont, "italic")
+        doc.text("(continued)", margin + 5, margin + 5 + headingLines.length * headingLineHeight + 4)
+        setFont(doc, fontSettings.titleFont, "bold")
+        doc.setFontSize(fontSettings.bodyFontSize)
       }
     }
 
@@ -786,17 +795,6 @@ function renderFormattedText(
 
   return currentY
 }
-
-// Clean markdown text for rendering
-// function cleanMarkdown(text: string): string {
-//   // Remove bold and italic markers but keep the text
-//   const cleaned = text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
-
-//   // For inline code, we'll handle it differently - keep backticks for now
-//   // This will be processed separately in the text rendering
-
-//   return cleaned
-// }
 
 // Render a table in PDF - simplified version for less ink usage
 function renderTable(
@@ -1435,10 +1433,63 @@ function renderMarkdownContent(
     // Handle strikethrough
     processedLine = processedLine.replace(/~~([^~]+)~~/g, "$1")
 
-    // Regular text with formatting
-    currentY = renderFormattedText(doc, processedLine, x, currentY + 2, maxWidth, fontSettings, pageHeight, margin)
+    // Regular text with formatting - ensure proper page breaks
+    const segments = processMarkdownFormatting(processedLine)
+    let currentX = x
 
-    currentY += lineHeight * 0.3 // Add small spacing between paragraphs
+    for (const segment of segments) {
+      // Set font based on formatting
+      let fontStyle = "normal"
+      let fontSize = fontSettings.bodyFontSize
+      let fontFamily = fontSettings.bodyFont
+
+      if (segment.bold && segment.italic) {
+        fontStyle = "bolditalic"
+      } else if (segment.bold) {
+        fontStyle = "bold"
+      } else if (segment.italic) {
+        fontStyle = "italic"
+      }
+
+      if (segment.code) {
+        fontFamily = "courier"
+        fontSize = fontSettings.smallFontSize
+      }
+
+      doc.setFontSize(fontSize)
+      setFont(doc, fontFamily, fontStyle)
+
+      // Handle text wrapping with proper page breaks
+      const words = segment.text.split(" ")
+
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i] + (i < words.length - 1 ? " " : "")
+        const wordWidth = doc.getTextWidth(word)
+
+        // Check if word fits on current line
+        if (currentX + wordWidth > x + maxWidth) {
+          // Move to next line
+          currentY += lineHeight
+          currentX = x
+
+          // Check if we need a new page
+          if (currentY > pageHeight - margin) {
+            doc.addPage()
+            currentY = margin
+            // Reset font after page break
+            setFont(doc, fontFamily, fontStyle)
+          }
+        }
+
+        // Draw the word
+        doc.text(word, currentX, currentY)
+        currentX += wordWidth
+      }
+    }
+
+    // Reset X position and move to next line
+    currentX = x
+    currentY += lineHeight * 0.8 // Improved spacing between paragraphs
   }
 
   return currentY
@@ -1518,7 +1569,7 @@ function renderListFixed(
   return currentY + 4 // Add space after the entire list
 }
 
-// Add images to PDF with proper processing
+// Add images to PDF with proper processing - FIXED to not auto-place on next page
 async function addImagesToPdf(
   doc: jsPDF,
   markdownText: string,
@@ -1590,14 +1641,20 @@ async function addImagesToPdf(
           displayWidth = displayHeight * aspectRatio
         }
 
-        // Check if we need a new page before adding the image
-        if (currentY + displayHeight + 10 > pageHeight - margin) {
+        // Add some space before the image
+        currentY += 5
+
+        // Calculate if the image will fit on the current page
+        const imageSpaceNeeded = displayHeight + 10 // Image height plus some padding
+        const availableSpace = pageHeight - margin - currentY
+
+        // Only start a new page if the image actually won't fit
+        if (imageSpaceNeeded > availableSpace && currentY > margin + 20) {
+          // Only move to next page if we're not already near the top of the page
+          // and the image truly won't fit
           doc.addPage()
           currentY = margin
         }
-
-        // Add some space before the image
-        currentY += 5
 
         // Add the image to the PDF
         try {
@@ -1724,10 +1781,7 @@ function renderListImproved(
         currentY += lineHeight
       }
     }
-
-    // Move to next list item with consistent spacing
-    currentY += lineHeight + 1 // Small gap between list items
   }
 
-  return currentY + 3 // Small spacing after the entire list
+  return currentY + 4 // Add space after the entire list
 }
