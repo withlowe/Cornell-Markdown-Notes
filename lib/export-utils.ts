@@ -24,9 +24,10 @@ async function loadCustomFonts(doc: jsPDF): Promise<boolean> {
 
 // Update the getFontSettings function to make serif font slightly larger
 function getFontSettings(font: "sans" | "serif" | "mixed"): FontSettings {
-  const titleFontSize = 15 // Slightly larger title
-  const bodyFontSize = 12 // Base body font size
-  const smallFontSize = 10
+  // Consistent sizes across all font styles - slightly smaller than before
+  const titleFontSize = 14 // Reduced from varying sizes (14.5-16)
+  const bodyFontSize = 11 // Reduced from varying sizes (11.5-12.5)
+  const smallFontSize = 9 // Reduced from 10
 
   // Always use built-in fonts
   console.log("Using built-in fonts for PDF export")
@@ -36,18 +37,18 @@ function getFontSettings(font: "sans" | "serif" | "mixed"): FontSettings {
         titleFont: "times", // Will be overridden to Georgia in setFont function
         bodyFont: "times", // Will be overridden to Georgia in setFont function
         mixedMode: false,
-        titleFontSize: titleFontSize + 1, // Slightly larger for serif
-        bodyFontSize: bodyFontSize + 0.5, // Slightly larger for serif (12.5)
-        smallFontSize,
+        titleFontSize, // Now consistent 14
+        bodyFontSize, // Now consistent 11
+        smallFontSize, // Now consistent 9
       }
     case "mixed":
       return {
         titleFont: "helvetica",
         bodyFont: "times", // Will be overridden to Georgia in setFont function
         mixedMode: true,
-        titleFontSize,
-        bodyFontSize: bodyFontSize + 0.5, // Slightly larger for serif body text in mixed mode
-        smallFontSize,
+        titleFontSize, // Now consistent 14
+        bodyFontSize, // Now consistent 11
+        smallFontSize, // Now consistent 9
       }
     case "sans":
     default:
@@ -55,9 +56,9 @@ function getFontSettings(font: "sans" | "serif" | "mixed"): FontSettings {
         titleFont: "helvetica",
         bodyFont: "helvetica",
         mixedMode: false,
-        titleFontSize,
-        bodyFontSize,
-        smallFontSize,
+        titleFontSize, // Now consistent 14
+        bodyFontSize, // Now consistent 11
+        smallFontSize, // Now consistent 9
       }
   }
 }
@@ -416,29 +417,14 @@ export async function exportToPdf(
         totalSections: sections.length,
       }
 
-      // Draw content with improved markdown rendering
+      // Draw content with improved markdown rendering - now includes images inline
       doc.setFontSize(fontSettings.bodyFontSize)
       setFont(doc, fontSettings.bodyFont, "normal")
-      const contentEndY = renderMarkdownContent(
+      const contentEndY = await renderMarkdownContentWithImages(
         doc,
         section.content,
         contentStartX,
         contentStartY,
-        contentWidth - 10,
-        pageHeight,
-        margin,
-        keyPointsWidth,
-        pageWidth - margin * 2,
-        sectionInfo,
-        fontSettings,
-      )
-
-      // Add images after the text content - pass the original processed content with images
-      const imagesEndY = await addImagesToPdf(
-        doc,
-        section.content, // Use the section content which still has image tags
-        contentStartX,
-        contentEndY + 3,
         contentWidth - 10,
         pageHeight,
         margin,
@@ -454,7 +440,7 @@ export async function exportToPdf(
         index,
         startY,
         startPage,
-        endY: imagesEndY,
+        endY: contentEndY,
         endPage,
       })
 
@@ -473,10 +459,10 @@ export async function exportToPdf(
         doc.setPage(pageNum)
 
         if (pageNum === startPage) {
-          const endY = pageNum === endPage ? imagesEndY : pageHeight - margin
+          const endY = pageNum === endPage ? contentEndY : pageHeight - margin
           doc.line(margin + keyPointsWidth, startY, margin + keyPointsWidth, endY)
         } else if (pageNum === endPage) {
-          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, imagesEndY)
+          doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, contentEndY)
         } else {
           doc.line(margin + keyPointsWidth, margin, margin + keyPointsWidth, pageHeight - margin)
         }
@@ -486,7 +472,7 @@ export async function exportToPdf(
       doc.setPage(endPage)
 
       // Update y position for next section
-      y = imagesEndY + 0.5
+      y = contentEndY + 0.5
     }
 
     // Draw horizontal lines at the bottom of each section - minimal styling
@@ -675,9 +661,6 @@ async function processContentForExport(content: string): Promise<string> {
 
   // Remove [[ ]] from note links in the content for PDF display
   processedContent = processedContent.replace(/\[\[([^\]]+)\]\]/g, "$1")
-
-  // DON'T remove image tags here - we need them for the addImagesToPdf function
-  // The renderMarkdownContent function will handle text content separately
 
   return processedContent
 }
@@ -883,7 +866,7 @@ function renderTable(
   }
 
   // Draw table header - use title font for headers
-  doc.setFontSize(fontSettings.bodyFontSize - 1)
+  doc.setFontSize(fontSettings.bodyFontSize - 1.5) // Changed from -1 to -1.5
 
   setFont(doc, "helvetica", "bold")
 
@@ -941,7 +924,7 @@ function renderTable(
 
   // Switch to body font for table content
   setFont(doc, "helvetica", "normal")
-  doc.setFontSize(fontSettings.bodyFontSize - 1)
+  doc.setFontSize(fontSettings.bodyFontSize - 1.5) // Changed from -1 to -1.5
 
   currentY += maxHeaderHeight
 
@@ -981,7 +964,7 @@ function renderTable(
       currentY = margin
 
       // Redraw header on new page
-      doc.setFontSize(fontSettings.bodyFontSize - 1)
+      doc.setFontSize(fontSettings.bodyFontSize - 1.5) // Changed from -1 to -1.5
 
       setFont(doc, "helvetica", "bold")
 
@@ -1037,7 +1020,7 @@ function renderTable(
       })
 
       setFont(doc, "helvetica", "normal")
-      doc.setFontSize(fontSettings.bodyFontSize - 1)
+      doc.setFontSize(fontSettings.bodyFontSize - 1.5) // Changed from -1 to -1.5
 
       currentY += maxHeaderHeight
 
@@ -1101,7 +1084,7 @@ function renderTable(
   return currentY + 4
 }
 
-// Render a list in PDF
+// Render a list in PDF - with reduced spacing to match regular text
 function renderList(
   doc: jsPDF,
   listItems: string[],
@@ -1152,11 +1135,11 @@ function renderList(
       margin,
     )
 
-    // Move to next line with consistent spacing
+    // Move to next line with consistent spacing - same as regular text
     currentY = itemEndY + lineHeight * 0.1 // Very small spacing between list items, same as paragraphs
   }
 
-  return currentY + lineHeight * 0.3 // Same spacing after list as after paragraphs
+  return currentY + lineHeight * 0.1 // Reduced spacing after list to match paragraphs
 }
 
 // Fix the renderCodeBlock function to ensure Courier font is properly applied
@@ -1274,8 +1257,8 @@ function renderCodeBlock(
   return finalY
 }
 
-// Replace the renderMarkdownContent function with this updated version that uses the improved list rendering
-function renderMarkdownContent(
+// New function that combines renderMarkdownContent and addImagesToPdf to render images inline
+async function renderMarkdownContentWithImages(
   doc: jsPDF,
   markdownText: string,
   x: number,
@@ -1287,20 +1270,17 @@ function renderMarkdownContent(
   pageWidth: number,
   sectionInfo: any,
   fontSettings: FontSettings,
-): number {
+): Promise<number> {
   let currentY = y
   const lineHeight = 6 // Consistent line height
   const indent = 5
-
-  // Remove image tags from the text content to avoid rendering them as text
-  const textOnlyContent = markdownText.replace(/<img[^>]*>/g, "")
 
   // Use body font for content
   doc.setFontSize(fontSettings.bodyFontSize)
   setFont(doc, fontSettings.bodyFont, "normal")
 
   // Split the markdown into lines
-  const lines = textOnlyContent.split("\n")
+  const lines = markdownText.split("\n")
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
@@ -1308,6 +1288,202 @@ function renderMarkdownContent(
     // Skip empty lines
     if (line === "") {
       currentY += lineHeight / 3
+      continue
+    }
+
+    // Check for image tags - process them inline where they appear
+    if (line.includes("<img")) {
+      const imageRegex = /<img[^>]*src=["'](.*?)["'][^>]*(?:alt=["'](.*?)["'])?[^>]*>/g
+      const matches = [...line.matchAll(imageRegex)]
+
+      for (const match of matches) {
+        const imageUrl = match[1]
+        const altText = match[2] || "Image"
+
+        if (imageUrl && !imageUrl.includes("/placeholder.svg") && !imageUrl.includes("/generic-placeholder-icon.png")) {
+          try {
+            let imageData = imageUrl
+
+            // Handle cornell-image:// URLs by loading from storage
+            if (imageUrl.startsWith("cornell-image://")) {
+              const imageId = imageUrl.replace("cornell-image://", "")
+              const storedImage = await getImage(imageId)
+              if (storedImage) {
+                imageData = storedImage
+              } else {
+                console.warn(`Image not found in storage: ${imageId}`)
+                continue
+              }
+            }
+
+            // Skip if not a data URL or valid image URL
+            if (!imageData.startsWith("data:") && !imageData.startsWith("http")) {
+              continue
+            }
+
+            // Create image element to get dimensions
+            const img = new Image()
+            img.crossOrigin = "anonymous"
+
+            await new Promise((resolve, reject) => {
+              img.onload = () => resolve(null)
+              img.onerror = (e) => reject(e)
+              img.src = imageData
+            })
+
+            const imgWidth = img.width
+            const imgHeight = img.height
+
+            // Calculate the aspect ratio
+            const aspectRatio = imgWidth / imgHeight
+
+            // Use the available width of the notes column (maxWidth) for images
+            const availableWidth = maxWidth
+            let displayWidth = availableWidth
+            let displayHeight = displayWidth / aspectRatio
+
+            // Set reasonable maximum height (about 50% of page height for better visibility)
+            const maxImageHeight = (pageHeight - margin * 2) * 0.5
+
+            // If height exceeds maximum, scale down proportionally
+            if (displayHeight > maxImageHeight) {
+              displayHeight = maxImageHeight
+              displayWidth = displayHeight * aspectRatio
+
+              // If scaled width is less than full width, stretch back to full width
+              if (displayWidth < availableWidth) {
+                displayWidth = availableWidth
+                // Allow height to exceed max if needed for full width
+                displayHeight = displayWidth / aspectRatio
+              }
+            }
+
+            // Ensure we're using the available width of the notes column
+            displayWidth = availableWidth
+            displayHeight = displayWidth / aspectRatio
+
+            // Only reduce height if it's extremely large (more than 60% of page)
+            if (displayHeight > (pageHeight - margin * 2) * 0.6) {
+              displayHeight = (pageHeight - margin * 2) * 0.6
+              // Don't scale width down - keep full width even if aspect ratio changes
+            }
+
+            // Add some space before the image
+            currentY += 3
+
+            // Calculate available space on current page
+            const availableSpace = pageHeight - margin - currentY - 5 // Leave small bottom margin
+
+            // Determine final image dimensions based on available space
+            const idealWidth = displayWidth
+            const idealHeight = displayHeight
+
+            // Only scale down if the image is significantly larger than available space
+            if (idealHeight > availableSpace) {
+              // Check if we have reasonable space to work with (at least 30mm)
+              if (availableSpace >= 30) {
+                // Scale the image to fit the available space
+                displayHeight = Math.min(idealHeight, availableSpace - 5) // Leave 5mm buffer
+                displayWidth = displayHeight * aspectRatio
+              } else {
+                // Very little space left - move to new page for better presentation
+                doc.addPage()
+                currentY = margin + 3
+
+                // Recalculate available space on new page
+                const newPageAvailableSpace = pageHeight - margin - currentY - 5
+
+                // Use ideal dimensions if they fit, otherwise scale to fit new page
+                if (idealHeight <= newPageAvailableSpace) {
+                  displayHeight = idealHeight
+                  displayWidth = idealWidth
+                } else {
+                  displayHeight = Math.min(idealHeight, newPageAvailableSpace - 5)
+                  displayWidth = displayHeight * aspectRatio
+                }
+              }
+            }
+
+            // Ensure minimum readable size - if too small after scaling, use more space
+            const minImageHeight = 25 // Minimum height in mm for readability
+            if (displayHeight < minImageHeight && availableSpace >= minImageHeight + 10) {
+              displayHeight = minImageHeight
+              displayWidth = displayHeight * aspectRatio
+
+              // If width exceeds maxWidth after minimum height adjustment, scale back proportionally
+              if (displayWidth > maxWidth) {
+                displayWidth = maxWidth
+                displayHeight = displayWidth / aspectRatio
+              }
+            }
+
+            // Add the image to the PDF
+            try {
+              doc.addImage(imageData, "JPEG", x, currentY, displayWidth, displayHeight)
+
+              currentY += displayHeight
+
+              // Add alt text below the image if it exists and is meaningful
+              if (altText && altText !== "Image" && altText.length > 0) {
+                currentY += 2
+
+                // Check if we need a new page for the caption
+                const captionHeight = 8 // Estimated height for caption
+                if (currentY + captionHeight > pageHeight - margin) {
+                  doc.addPage()
+                  currentY = margin
+                }
+
+                doc.setFontSize(fontSettings.smallFontSize)
+                doc.setTextColor(100, 100, 100)
+                setFont(doc, fontSettings.bodyFont, "italic")
+
+                const captionLines = doc.splitTextToSize(`Figure: ${altText}`, maxWidth)
+                for (let i = 0; i < captionLines.length; i++) {
+                  // Check for page break on each caption line
+                  if (currentY + 5 > pageHeight - margin) {
+                    doc.addPage()
+                    currentY = margin
+                    // Reset font after page break
+                    setFont(doc, fontSettings.bodyFont, "italic")
+                  }
+
+                  doc.text(captionLines[i], x, currentY)
+                  currentY += 5
+                }
+
+                // Reset font
+                doc.setTextColor(0, 0, 0)
+                doc.setFontSize(fontSettings.bodyFontSize)
+                setFont(doc, fontSettings.bodyFont, "normal")
+              }
+
+              // Add some space after the image
+              currentY += 4
+            } catch (imageError) {
+              console.error(`Error adding image to PDF:`, imageError)
+              // Add a placeholder text instead
+              doc.setFontSize(fontSettings.smallFontSize)
+              doc.setTextColor(150, 150, 150)
+              doc.text(`[Image: ${altText}]`, x, currentY)
+              doc.setTextColor(0, 0, 0)
+              doc.setFontSize(fontSettings.bodyFontSize)
+              currentY += 8
+            }
+          } catch (error) {
+            console.error(`Error processing image ${imageUrl} for PDF:`, error)
+            // Add a placeholder text for failed images
+            doc.setFontSize(fontSettings.smallFontSize)
+            doc.setTextColor(150, 150, 150)
+            doc.text(`[Image could not be loaded: ${altText}]`, x, currentY)
+            doc.setTextColor(0, 0, 0)
+            doc.setFontSize(fontSettings.bodyFontSize)
+            currentY += 8
+          }
+        }
+      }
+
+      // Skip to next line after processing images
       continue
     }
 
@@ -1539,7 +1715,7 @@ function renderMarkdownContent(
   return currentY
 }
 
-// Add this completely new function to fix list rendering
+// Updated function to fix list rendering with reduced spacing
 function renderListFixed(
   doc: jsPDF,
   listItems: string[],
@@ -1551,13 +1727,15 @@ function renderListFixed(
   margin: number,
   fontSettings: FontSettings,
 ): number {
-  let currentY = y
+  const currentY = y
   const lineHeight = 6 // Same as regular text line height
   const indent = 8 // Slightly larger indent for better readability
 
   // Use body font for list content
   doc.setFontSize(fontSettings.bodyFontSize)
   setFont(doc, fontSettings.bodyFont, "normal")
+
+  let currentItemY = currentY
 
   for (let index = 0; index < listItems.length; index++) {
     const item = listItems[index].trim()
@@ -1566,9 +1744,9 @@ function renderListFixed(
     if (!item) continue
 
     // Check if we need a new page
-    if (currentY + lineHeight > pageHeight - margin) {
+    if (currentItemY + lineHeight > pageHeight - margin) {
       doc.addPage()
-      currentY = margin
+      currentItemY = margin
       // Reset font after page break
       setFont(doc, fontSettings.bodyFont, "normal")
     }
@@ -1580,7 +1758,7 @@ function renderListFixed(
     const markerWidth = doc.getTextWidth(marker) + 2
 
     // Draw the marker
-    doc.text(marker, x, currentY)
+    doc.text(marker, x, currentItemY)
 
     // Calculate available width for the item text
     const itemTextWidth = maxWidth - markerWidth - indent
@@ -1589,288 +1767,26 @@ function renderListFixed(
     const itemLines = doc.splitTextToSize(item, itemTextWidth)
 
     // Draw the first line of the item
-    doc.text(itemLines[0], x + markerWidth + indent, currentY)
+    doc.text(itemLines[0], x + markerWidth + indent, currentItemY)
 
     // Draw any additional lines with proper indentation
     for (let lineIndex = 1; lineIndex < itemLines.length; lineIndex++) {
-      currentY += lineHeight
+      currentItemY += lineHeight
 
       // Check if we need a new page for continuation lines
-      if (currentY + lineHeight > pageHeight - margin) {
+      if (currentItemY + lineHeight > pageHeight - margin) {
         doc.addPage()
-        currentY = margin
+        currentItemY = margin
         // Reset font after page break
         setFont(doc, fontSettings.bodyFont, "normal")
       }
 
-      doc.text(itemLines[lineIndex], x + markerWidth + indent, currentY)
+      doc.text(itemLines[lineIndex], x + markerWidth + indent, currentItemY)
     }
 
-    // Move to the next list item
-    currentY += lineHeight + 2 // Add extra space between list items
+    // Move to the next list item with slightly increased spacing
+    currentItemY += lineHeight * 0.9 // Slightly increased spacing between list items
   }
 
-  return currentY + 4 // Add space after the entire list
-}
-
-// Add images to PDF with proper processing - IMPROVED to better utilize page space
-async function addImagesToPdf(
-  doc: jsPDF,
-  markdownText: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  pageHeight: number,
-  margin: number,
-  keyPointsWidth: number,
-  pageWidth: number,
-  sectionInfo: any,
-  fontSettings: FontSettings,
-): Promise<number> {
-  let currentY = y
-
-  // Find all image tags in the original content (before HTML removal)
-  const imageRegex = /<img[^>]*src=["'](.*?)["'][^>]*(?:alt=["'](.*?)["'])?[^>]*>/g
-  const matches = [...markdownText.matchAll(imageRegex)]
-
-  for (const match of matches) {
-    const imageUrl = match[1]
-    const altText = match[2] || "Image"
-
-    if (imageUrl && !imageUrl.includes("/placeholder.svg") && !imageUrl.includes("/generic-placeholder-icon.png")) {
-      try {
-        let imageData = imageUrl
-
-        // Handle cornell-image:// URLs by loading from storage
-        if (imageUrl.startsWith("cornell-image://")) {
-          const imageId = imageUrl.replace("cornell-image://", "")
-          const storedImage = await getImage(imageId)
-          if (storedImage) {
-            imageData = storedImage
-          } else {
-            console.warn(`Image not found in storage: ${imageId}`)
-            continue
-          }
-        }
-
-        // Skip if not a data URL or valid image URL
-        if (!imageData.startsWith("data:") && !imageData.startsWith("http")) {
-          continue
-        }
-
-        // Create image element to get dimensions
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-
-        await new Promise((resolve, reject) => {
-          img.onload = () => resolve(null)
-          img.onerror = (e) => reject(e)
-          img.src = imageData
-        })
-
-        const imgWidth = img.width
-        const imgHeight = img.height
-
-        // Calculate the aspect ratio
-        const aspectRatio = imgWidth / imgHeight
-
-        // Calculate ideal dimensions to fit within maxWidth
-        let idealWidth = maxWidth
-        let idealHeight = idealWidth / aspectRatio
-
-        // Set reasonable maximum height (about 1/3 of page height)
-        const maxImageHeight = (pageHeight - margin * 2) * 0.4
-
-        // If ideal height is too large, scale down based on height
-        if (idealHeight > maxImageHeight) {
-          idealHeight = maxImageHeight
-          idealWidth = idealHeight * aspectRatio
-        }
-
-        // Add some space before the image
-        currentY += 3
-
-        // Calculate available space on current page
-        const availableSpace = pageHeight - margin - currentY - 5 // Leave small bottom margin
-
-        // Determine final image dimensions based on available space
-        let displayWidth = idealWidth
-        let displayHeight = idealHeight
-
-        // Only scale down if the image is significantly larger than available space
-        if (idealHeight > availableSpace) {
-          // Check if we have reasonable space to work with (at least 30mm)
-          if (availableSpace >= 30) {
-            // Scale the image to fit the available space
-            displayHeight = Math.min(idealHeight, availableSpace - 5) // Leave 5mm buffer
-            displayWidth = displayHeight * aspectRatio
-          } else {
-            // Very little space left - move to new page for better presentation
-            doc.addPage()
-            currentY = margin + 3
-
-            // Recalculate available space on new page
-            const newPageAvailableSpace = pageHeight - margin - currentY - 5
-
-            // Use ideal dimensions if they fit, otherwise scale to fit new page
-            if (idealHeight <= newPageAvailableSpace) {
-              displayHeight = idealHeight
-              displayWidth = idealWidth
-            } else {
-              displayHeight = Math.min(idealHeight, newPageAvailableSpace - 5)
-              displayWidth = displayHeight * aspectRatio
-            }
-          }
-        }
-
-        // Ensure minimum readable size - if too small after scaling, use more space
-        const minImageHeight = 25 // Minimum height in mm for readability
-        if (displayHeight < minImageHeight && availableSpace >= minImageHeight + 10) {
-          displayHeight = minImageHeight
-          displayWidth = displayHeight * aspectRatio
-
-          // If width exceeds maxWidth after minimum height adjustment, scale back proportionally
-          if (displayWidth > maxWidth) {
-            displayWidth = maxWidth
-            displayHeight = displayWidth / aspectRatio
-          }
-        }
-
-        // Add the image to the PDF
-        try {
-          doc.addImage(imageData, "JPEG", x, currentY, displayWidth, displayHeight)
-
-          currentY += displayHeight
-
-          // Add alt text below the image if it exists and is meaningful
-          if (altText && altText !== "Image" && altText.length > 0) {
-            currentY += 2
-
-            // Check if we need a new page for the caption
-            const captionHeight = 8 // Estimated height for caption
-            if (currentY + captionHeight > pageHeight - margin) {
-              doc.addPage()
-              currentY = margin
-            }
-
-            doc.setFontSize(fontSettings.smallFontSize)
-            doc.setTextColor(100, 100, 100)
-            setFont(doc, fontSettings.bodyFont, "italic")
-
-            const captionLines = doc.splitTextToSize(`Figure: ${altText}`, maxWidth)
-            for (let i = 0; i < captionLines.length; i++) {
-              // Check for page break on each caption line
-              if (currentY + 5 > pageHeight - margin) {
-                doc.addPage()
-                currentY = margin
-                // Reset font after page break
-                setFont(doc, fontSettings.bodyFont, "italic")
-              }
-
-              doc.text(captionLines[i], x, currentY)
-              currentY += 5
-            }
-
-            // Reset font
-            doc.setTextColor(0, 0, 0)
-            doc.setFontSize(fontSettings.bodyFontSize)
-            setFont(doc, fontSettings.bodyFont, "normal")
-          }
-
-          // Add some space after the image
-          currentY += 4
-        } catch (imageError) {
-          console.error(`Error adding image to PDF:`, imageError)
-          // Add a placeholder text instead
-          doc.setFontSize(fontSettings.smallFontSize)
-          doc.setTextColor(150, 150, 150)
-          doc.text(`[Image: ${altText}]`, x, currentY)
-          doc.setTextColor(0, 0, 0)
-          doc.setFontSize(fontSettings.bodyFontSize)
-          currentY += 8
-        }
-      } catch (error) {
-        console.error(`Error processing image ${imageUrl} for PDF:`, error)
-        // Add a placeholder text for failed images
-        doc.setFontSize(fontSettings.smallFontSize)
-        doc.setTextColor(150, 150, 150)
-        doc.text(`[Image could not be loaded: ${altText}]`, x, currentY)
-        doc.setTextColor(0, 0, 0)
-        doc.setFontSize(fontSettings.bodyFontSize)
-        currentY += 8
-      }
-    }
-  }
-
-  return currentY
-}
-
-// Render a list in PDF - improved version
-function renderListImproved(
-  doc: jsPDF,
-  listItems: string[],
-  x: number,
-  y: number,
-  maxWidth: number,
-  isNumbered: boolean,
-  pageHeight: number,
-  margin: number,
-  fontSettings: FontSettings,
-): number {
-  let currentY = y
-  const lineHeight = 6 // Same as regular text line height
-  const indent = 8 // Slightly larger indent for better readability
-
-  // Use body font for list content
-  doc.setFontSize(fontSettings.bodyFontSize)
-  setFont(doc, fontSettings.bodyFont, "normal")
-
-  for (let index = 0; index < listItems.length; index++) {
-    const item = listItems[index]
-
-    // Check if we need a new page
-    if (currentY + lineHeight > pageHeight - margin) {
-      doc.addPage()
-      currentY = margin
-      // Reset font after page break
-      setFont(doc, fontSettings.bodyFont, "normal")
-    }
-
-    // Create bullet or number
-    const marker = isNumbered ? `${index + 1}.` : "•"
-
-    // Calculate marker width more accurately
-    const markerText = isNumbered ? `${marker} ` : `${marker}  `
-    const markerWidth = doc.getTextWidth(markerText)
-
-    // Draw the marker
-    doc.text(marker, x, currentY)
-
-    // Calculate available width for the item text
-    const itemTextWidth = maxWidth - markerWidth - indent
-
-    // Split the item text into lines that fit
-    const itemLines = doc.splitTextToSize(item, itemTextWidth)
-
-    // Draw each line of the item
-    for (let lineIndex = 0; lineIndex < itemLines.length; lineIndex++) {
-      // Check if we need a new page for continuation lines
-      if (currentY + lineHeight > pageHeight - margin) {
-        doc.addPage()
-        currentY = margin
-        // Reset font after page break
-        setFont(doc, fontSettings.bodyFont, "normal")
-      }
-
-      const textX = x + markerWidth + indent
-      doc.text(itemLines[lineIndex], textX, currentY)
-
-      // Only move to next line if there are more lines for this item
-      if (lineIndex < itemLines.length - 1) {
-        currentY += lineHeight
-      }
-    }
-  }
-
-  return currentY + 4 // Add space after the entire list
+  return currentItemY + lineHeight * 0.2 // Slightly more space after the entire list
 }
