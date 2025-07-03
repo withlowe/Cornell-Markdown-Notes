@@ -4,6 +4,8 @@ import { getImage } from "./image-storage"
 interface FlashCard {
   front: string
   back: string
+  title: string
+  tags: string
   images?: { [key: string]: string } // Store images as base64 data URLs
 }
 
@@ -57,7 +59,7 @@ function convertTableToHtml(tableText: string): string {
     html += "<thead><tr>"
     headers.forEach((header, i) => {
       const align = alignments[i] || "left"
-      html += `<th style="padding: 8px; text-align: ${align}; border: 1px solid #ddd; font-weight: bold;">${cleanMarkdownInCell(header)}</th>`
+      html += `<th style="padding: 8px; text-align: ${align}; border: 1px solid #ddd; font-weight: bold;">${cleanMarkdownInCellSync(header)}</th>`
     })
     html += "</tr></thead>"
   }
@@ -74,7 +76,7 @@ function convertTableToHtml(tableText: string): string {
       html += "<tr>"
       cells.forEach((cell, i) => {
         const align = alignments[i] || "left"
-        html += `<td style="padding: 8px; text-align: ${align}; border: 1px solid #ddd;">${cleanMarkdownInCell(cell)}</td>`
+        html += `<td style="padding: 8px; text-align: ${align}; border: 1px solid #ddd;">${cleanMarkdownInCellSync(cell)}</td>`
       })
       html += "</tr>"
     })
@@ -85,8 +87,8 @@ function convertTableToHtml(tableText: string): string {
   return html
 }
 
-// Clean markdown formatting within table cells
-function cleanMarkdownInCell(text: string): string {
+// Clean markdown formatting within table cells (synchronous version)
+function cleanMarkdownInCellSync(text: string): string {
   return text
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
@@ -94,7 +96,7 @@ function cleanMarkdownInCell(text: string): string {
     .trim()
 }
 
-// Convert markdown lists to HTML lists for Anki
+// Convert markdown lists to HTML lists for Anki (synchronous version)
 function convertListToHtml(listText: string): string {
   const lines = listText.split("\n").filter((line) => line.trim())
 
@@ -116,7 +118,13 @@ function convertListToHtml(listText: string): string {
       content = trimmed.replace(/^[-*]\s*/, "")
     }
 
-    html += `<li style="margin: 5px 0;">${cleanMarkdownForAnki(content)}</li>`
+    // Use synchronous markdown cleaning for list items
+    const cleanContent = content
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g, "<em>$1</em>")
+      .replace(/`([^`]+)`/g, "<code style='background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px;'>$1</code>")
+
+    html += `<li style="margin: 5px 0;">${cleanContent}</li>`
   })
 
   html += `</${tag}>`
@@ -184,7 +192,7 @@ async function processImagesForAnki(content: string): Promise<{ html: string; im
   }
 
   // Process markdown images
-  const markdownImageRegex = /!\[(.*?)\]$$(.*?)$$/g
+  const markdownImageRegex = /!\[(.*?)\]$$([^)]+)$$/g
   while ((match = markdownImageRegex.exec(processedContent)) !== null) {
     const fullMatch = match[0]
     const alt = match[1] || "Image"
@@ -210,10 +218,10 @@ async function cleanMarkdownForAnki(text: string): Promise<{ content: string; im
     return convertTableToHtml(match.trim())
   })
 
-  // Process lists (both ordered and unordered)
-  const listRegex = /((?:^[ \t]*[-*][ \t]+.+\n?)+|(?:^[ \t]*\d+\.[ \t]+.+\n?)+)/gm
+  // Process lists (both ordered and unordered) - now synchronous
+  const listRegex = /((?:^[ \t]*[-*][ \t]+.+(?:\n|$))+|(?:^[ \t]*\d+\.[ \t]+.+(?:\n|$))+)/gm
   cleaned = cleaned.replace(listRegex, (match) => {
-    return convertListToHtml(match)
+    return convertListToHtml(match.trim())
   })
 
   // Process other markdown formatting
@@ -251,16 +259,43 @@ async function cleanMarkdownForAnki(text: string): Promise<{ content: string; im
   return { content: cleaned, images }
 }
 
+// Get document tags from storage
+function getDocumentTags(title: string): string[] {
+  try {
+    if (typeof window === "undefined") return []
+
+    const docs = localStorage.getItem("cornell-notes-docs")
+    if (!docs) return []
+
+    const documents = JSON.parse(docs)
+    const doc = documents.find((d: any) => d.title === title)
+    return doc?.tags || []
+  } catch (error) {
+    console.error("Error getting document tags:", error)
+    return []
+  }
+}
+
 // Parse Cornell notes into flashcards with enhanced content processing
-async function parseNotesToFlashcards(title: string, summary: string, markdown: string): Promise<FlashCard[]> {
+async function parseNotesToFlashcards(
+  title: string,
+  summary: string,
+  markdown: string,
+  documentTags: string[] = [],
+): Promise<FlashCard[]> {
   const flashcards: FlashCard[] = []
+
+  // Create tags string from document tags only - no automatic content type tags
+  const tagsString = documentTags.length > 0 ? documentTags.join(" ") : ""
 
   // Add a summary card if summary exists
   if (summary.trim()) {
     const { content, images } = await cleanMarkdownForAnki(summary)
     flashcards.push({
-      front: `${title} - Summary`,
+      front: `Summary: ${title}`,
       back: content,
+      title: title,
+      tags: tagsString, // Only document tags, no automatic 'summary' tag
       images: images,
     })
   }
@@ -270,22 +305,23 @@ async function parseNotesToFlashcards(title: string, summary: string, markdown: 
   let currentHeading = ""
   let currentContent: string[] = []
 
-  lines.forEach((line) => {
+  // Process all sections sequentially to avoid async issues
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
     if (line.startsWith("# ")) {
       // Save previous section if it exists
       if (currentHeading && currentContent.length > 0) {
         const contentText = currentContent.join("\n").trim()
         if (contentText) {
-          // Process this section asynchronously
-          const processSection = async () => {
-            const { content, images } = await cleanMarkdownForAnki(contentText)
-            flashcards.push({
-              front: currentHeading,
-              back: content,
-              images: images,
-            })
-          }
-          // We'll handle this in the main function
+          const { content, images } = await cleanMarkdownForAnki(contentText)
+          flashcards.push({
+            front: currentHeading,
+            back: content,
+            title: title,
+            tags: tagsString, // Only document tags, no automatic 'section' tag
+            images: images,
+          })
         }
       }
 
@@ -294,28 +330,6 @@ async function parseNotesToFlashcards(title: string, summary: string, markdown: 
       currentContent = []
     } else if (currentHeading) {
       // Add content to current section
-      currentContent.push(line)
-    }
-  })
-
-  // Process all sections
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (line.startsWith("# ")) {
-      if (currentHeading && currentContent.length > 0) {
-        const contentText = currentContent.join("\n").trim()
-        if (contentText) {
-          const { content, images } = await cleanMarkdownForAnki(contentText)
-          flashcards.push({
-            front: currentHeading,
-            back: content,
-            images: images,
-          })
-        }
-      }
-      currentHeading = line.substring(2).trim()
-      currentContent = []
-    } else if (currentHeading) {
       currentContent.push(line)
     }
   }
@@ -328,6 +342,8 @@ async function parseNotesToFlashcards(title: string, summary: string, markdown: 
       flashcards.push({
         front: currentHeading,
         back: content,
+        title: title,
+        tags: tagsString, // Only document tags, no automatic 'section' tag
         images: images,
       })
     }
@@ -336,30 +352,88 @@ async function parseNotesToFlashcards(title: string, summary: string, markdown: 
   return flashcards
 }
 
-// Generate Anki-compatible TSV content
+// Escape text for TSV format - enhanced to handle problematic characters
+function escapeTSVField(text: string): string {
+  if (!text) return ""
+
+  // First, normalize the text by removing any existing HTML line breaks that might interfere
+  let cleaned = text
+    .replace(/<br\s*\/?>/gi, " ") // Convert HTML breaks to spaces
+    .replace(/\r?\n/g, " ") // Convert actual newlines to spaces
+    .replace(/\t/g, "    ") // Convert tabs to 4 spaces
+    .replace(/\s+/g, " ") // Collapse multiple spaces
+    .trim()
+
+  // Handle quotes by doubling them (TSV standard)
+  cleaned = cleaned.replace(/"/g, '""')
+
+  // If the field contains commas, tabs, quotes, or newlines, wrap in quotes
+  if (cleaned.includes('"') || cleaned.includes("\t") || cleaned.includes("\n") || cleaned.includes(",")) {
+    cleaned = `"${cleaned}"`
+  }
+
+  return cleaned
+}
+
+// Generate Anki-compatible TSV content with proper headers
 function generateAnkiTSV(flashcards: FlashCard[]): string {
-  // Anki format: Front\tBack\n
-  return flashcards
-    .map((card) => {
-      // Escape tabs and preserve HTML in the content
-      const front = card.front.replace(/\t/g, " ").replace(/\r?\n/g, " ")
-      const back = card.back.replace(/\t/g, " ") // Keep HTML in back
-      return `${front}\t${back}`
+  // Add header row for clarity (Anki will ignore it during import if configured properly)
+  const header = "#separator:tab\n#html:true\n#tags column:4\n"
+
+  // Generate data rows
+  const dataRows = flashcards
+    .map((card, index) => {
+      try {
+        const front = escapeTSVField(card.front)
+        const back = escapeTSVField(card.back)
+        const title = escapeTSVField(card.title)
+        const tags = escapeTSVField(card.tags)
+
+        // Debug log for problematic cards
+        if (index === 0) {
+          console.log("First card debug:", {
+            originalFront: card.front.substring(0, 50),
+            escapedFront: front.substring(0, 50),
+            originalBack: card.back.substring(0, 50),
+            escapedBack: back.substring(0, 50),
+            tags: tags,
+          })
+        }
+
+        return `${front}\t${back}\t${title}\t${tags}`
+      } catch (error) {
+        console.error(`Error processing card ${index}:`, error, card)
+        return `Error processing card\tError in content\t${card.title || "Unknown"}\terror`
+      }
     })
     .join("\n")
+
+  return header + dataRows
 }
 
 // Export flashcards to Anki format with images
 export async function exportToAnki(title: string, summary: string, markdown: string): Promise<void> {
   try {
+    // Get document tags
+    const documentTags = getDocumentTags(title)
+    console.log("Document tags found:", documentTags) // Debug log
+
     // Parse notes into flashcards
-    const flashcards = await parseNotesToFlashcards(title, summary, markdown)
+    const flashcards = await parseNotesToFlashcards(title, summary, markdown, documentTags)
 
     if (flashcards.length === 0) {
       throw new Error(
         "No flashcards could be generated from this note. Make sure you have headings (# sections) with content.",
       )
     }
+
+    // Debug log to check flashcard content
+    console.log("Sample flashcard:", {
+      front: flashcards[0]?.front?.substring(0, 100),
+      back: flashcards[0]?.back?.substring(0, 100),
+      title: flashcards[0]?.title,
+      tags: flashcards[0]?.tags,
+    })
 
     // Collect all images from all flashcards
     const allImages: { [key: string]: string } = {}
@@ -371,6 +445,7 @@ export async function exportToAnki(title: string, summary: string, markdown: str
 
     // Generate TSV content
     const tsvContent = generateAnkiTSV(flashcards)
+    console.log("TSV preview (first 300 chars):", tsvContent.substring(0, 300)) // Debug log
 
     // Create zip file
     const zip = new JSZip()
@@ -394,55 +469,87 @@ export async function exportToAnki(title: string, summary: string, markdown: str
     await Promise.all(imagePromises)
 
     // Add a comprehensive readme file with import instructions
-    const readmeContent = `Anki Flashcards Export
-======================
+    const readmeContent = `Anki Flashcards Export - ${title}
+${"=".repeat(50)}
 
 This package contains ${flashcards.length} flashcards exported from "${title}".
-${Object.keys(allImages).length > 0 ? `\nIncludes ${Object.keys(allImages).length} images in the 'images' folder.` : ""}
+${Object.keys(allImages).length > 0 ? `Includes ${Object.keys(allImages).length} images in the 'images' folder.` : ""}
 
 CONTENTS:
-- ${filename}: The flashcard data in tab-separated format
-${Object.keys(allImages).length > 0 ? "- images/: Folder containing all images referenced in the flashcards" : ""}
+- ${filename}: Flashcard data in Anki-compatible format
+${Object.keys(allImages).length > 0 ? "- images/: All referenced images" : ""}
+
+FILE FORMAT:
+The .txt file contains tab-separated values with these columns:
+1. Front (Question/Heading)
+2. Back (Answer/Content with HTML formatting)  
+3. Title (Source document: "${title}")
+4. Tags (${documentTags.length > 0 ? documentTags.join(", ") : "None"})
 
 IMPORT INSTRUCTIONS:
-1. Extract this entire zip file to a folder
+1. Extract this zip file completely
 2. Open Anki
-3. Create a new deck or select an existing one
-4. Go to File > Import
-5. Navigate to the extracted folder and select the .txt file
-6. In the import dialog:
-   - Set Field separator to "Tab"
-   - Set field 1 to "Front" and field 2 to "Back"
-   - Make sure "Allow HTML in fields" is checked
-   - Click Import
+3. Select or create a deck
+4. Go to File → Import
+5. Select the ${filename} file
+6. Configure import settings:
+   ✓ Field separator: Tab
+   ✓ Allow HTML in fields: YES
+   ✓ First line is field names: NO
+   ✓ Field mapping:
+     - Field 1 → Front
+     - Field 2 → Back
+     - Field 3 → Title (add this field if needed)
+     - Field 4 → Tags
+7. Click Import
+
+FIELD SETUP:
+If you don't have a Title field in your note type:
+1. Go to Tools → Manage Note Types
+2. Select your note type and click Fields
+3. Add a new field called "Title"
+4. Rearrange fields to match the import order
 
 ${
   Object.keys(allImages).length > 0
     ? `
 IMAGE SETUP:
-After importing the cards, you need to copy the images to your Anki media folder:
-1. Find your Anki profile folder:
-   - Windows: Documents/Anki2/[Profile Name]/collection.media/
-   - Mac: ~/Library/Application Support/Anki2/[Profile Name]/collection.media/
-   - Linux: ~/.local/share/Anki2/[Profile Name]/collection.media/
-2. Copy all files from the 'images' folder to the collection.media folder
-3. Restart Anki to ensure images are properly loaded
+Copy images to your Anki media folder:
 
-The flashcards will then display with full formatting including:
-`
-    : `
-The flashcards include enhanced formatting with:
-`
-}- Tables converted to HTML format
-- Lists (both ordered and unordered)
-- Bold and italic text formatting
-- Code blocks with syntax highlighting
-- Links (external URLs)
-- Blockquotes
-${Object.keys(allImages).length > 0 ? "- Embedded images" : ""}
+Windows: Documents\\Anki2\\[Profile]\\collection.media\\
+Mac: ~/Library/Application Support/Anki2/[Profile]/collection.media/
+Linux: ~/.local/share/Anki2/[Profile]/collection.media/
 
-Generated on: ${new Date().toLocaleString()}
-Source: ${title}
+1. Copy ALL files from the 'images' folder to collection.media
+2. Restart Anki
+3. Images will appear in your cards automatically
+
+`
+    : ""
+}
+FORMATTING INCLUDED:
+✓ HTML tables
+✓ Ordered and unordered lists  
+✓ Bold and italic text
+✓ Code blocks and inline code
+✓ Links and blockquotes
+✓ Headers and line breaks
+${Object.keys(allImages).length > 0 ? "✓ Images" : ""}
+
+TAGS APPLIED:
+Document tags: ${documentTags.length > 0 ? documentTags.join(", ") : "None"}
+Note: No automatic content-type tags are added
+
+TROUBLESHOOTING:
+- Fields misaligned? Check field separator is set to "Tab"
+- No formatting? Enable "Allow HTML in fields"
+- Missing tags? Ensure field 4 maps to "Tags"
+- Images missing? Copy images to collection.media folder
+- Summary card issues? Check for special characters in summary text
+
+Generated: ${new Date().toLocaleString()}
+Cards: ${flashcards.length}
+Images: ${Object.keys(allImages).length}
 `
 
     zip.file("README.txt", readmeContent)
@@ -464,5 +571,6 @@ Source: ${title}
 
 // Preview flashcards (for debugging or user preview)
 export async function previewFlashcards(title: string, summary: string, markdown: string): Promise<FlashCard[]> {
-  return await parseNotesToFlashcards(title, summary, markdown)
+  const documentTags = getDocumentTags(title)
+  return await parseNotesToFlashcards(title, summary, markdown, documentTags)
 }

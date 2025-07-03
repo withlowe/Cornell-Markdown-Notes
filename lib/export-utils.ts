@@ -171,11 +171,11 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
   const lineHeight = 6
   let estimatedHeight = 0
 
-  // Add heading height (conservative estimate)
-  const headingLines = Math.ceil(section.heading.length / 30) // Conservative character count
-  estimatedHeight += headingLines * lineHeight + 6 // Reduced padding
+  // Add heading height with more generous estimate
+  const headingLines = Math.ceil(section.heading.length / 25) // More conservative character count
+  estimatedHeight += headingLines * lineHeight + 8 // Increased padding
 
-  // Count actual content lines more accurately
+  // Count actual content lines with more generous estimates
   let contentLines = 0
   let hasImages = false
   let hasCodeBlocks = false
@@ -185,17 +185,17 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
     const line = lines[i].trim()
 
     if (line === "") {
-      contentLines += 0.2 // Minimal space for empty lines
+      contentLines += 0.3 // Slightly more space for empty lines
       continue
     }
 
-    // Images - just count them, don't estimate height here
+    // Images - more generous estimation
     if (line.includes("<img")) {
       hasImages = true
       continue
     }
 
-    // Tables - more accurate estimation
+    // Tables - more generous estimation
     if (line.startsWith("|") && line.endsWith("|")) {
       hasTables = true
       let tableRows = 0
@@ -204,11 +204,11 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
         i++
       }
       i-- // Adjust for the outer loop increment
-      contentLines += tableRows * 1.2 // More conservative table estimation
+      contentLines += tableRows * 1.5 // More generous table estimation
       continue
     }
 
-    // Code blocks
+    // Code blocks - more generous estimation
     if (line.startsWith("```")) {
       hasCodeBlocks = true
       let codeLines = 0
@@ -217,11 +217,11 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
         codeLines++
         i++
       }
-      contentLines += codeLines * 0.8 + 1.5 // More conservative code block estimation
+      contentLines += codeLines * 1.0 + 2.5 // More generous code block estimation
       continue
     }
 
-    // Lists
+    // Lists - more generous estimation
     if (line.match(/^[-*]\s/) || line.match(/^\d+\.\s/)) {
       let listItems = 0
       while (i < lines.length && (lines[i].trim().match(/^[-*]\s/) || lines[i].trim().match(/^\d+\.\s/))) {
@@ -229,11 +229,11 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
         i++
       }
       i-- // Adjust for the outer loop increment
-      contentLines += listItems * 1.1 // Conservative list estimation
+      contentLines += listItems * 1.3 // More generous list estimation
       continue
     }
 
-    // Blockquotes
+    // Blockquotes - more generous estimation
     if (line.startsWith(">")) {
       let quoteLines = 0
       while (i < lines.length && lines[i].trim().startsWith(">")) {
@@ -241,41 +241,41 @@ function estimateSectionHeight(section: Section, fontSettings: FontSettings, max
         i++
       }
       i-- // Adjust for the outer loop increment
-      contentLines += quoteLines * 1.1
+      contentLines += quoteLines * 1.3
       continue
     }
 
-    // Headings
+    // Headings - more generous estimation
     if (line.match(/^#{2,6}\s/)) {
-      contentLines += 1.5 // Conservative heading height
+      contentLines += 2.0 // More generous heading height
       continue
     }
 
-    // Regular text - conservative estimation
-    const avgCharsPerLine = 75 // Conservative estimate
+    // Regular text - more generous estimation
+    const avgCharsPerLine = 65 // More conservative estimate
     const textLines = Math.ceil(line.length / avgCharsPerLine)
-    contentLines += textLines
+    contentLines += textLines * 1.1 // Add 10% buffer for text
   }
 
   // Convert content lines to height
   estimatedHeight += contentLines * lineHeight
 
-  // Add conservative estimates for special content
+  // Add more generous estimates for special content
   if (hasImages) {
     const imageCount = (section.content.match(/<img/g) || []).length
-    estimatedHeight += imageCount * 30 // Conservative image height
+    estimatedHeight += imageCount * 40 // More generous image height
   }
 
   if (hasCodeBlocks) {
-    estimatedHeight += 10 // Extra padding for code blocks
+    estimatedHeight += 15 // More padding for code blocks
   }
 
   if (hasTables) {
-    estimatedHeight += 8 // Extra padding for tables
+    estimatedHeight += 12 // More padding for tables
   }
 
-  // Minimal buffer
-  estimatedHeight += 5
+  // More generous buffer
+  estimatedHeight += 10
 
   return estimatedHeight
 }
@@ -361,33 +361,29 @@ export async function exportToPdf(
         continue
       }
 
-      // More flexible page break logic - prioritize space utilization
+      // Calculate estimated section height
       const estimatedSectionHeight = estimateSectionHeight(section, fontSettings, contentWidth - 10)
       const availableSpace = pageHeight - margin - y
 
-      // Calculate how much of the section would fit on current page
-      const wouldFitPercentage = availableSpace / estimatedSectionHeight
-
-      // Only start a new page if:
-      // 1. We're not already at the top of a page (y > margin + 40)
-      // 2. AND one of these conditions is met:
-      //    a) Very large section (>80mm) with very little space (<25% fit)
-      //    b) Medium section (>50mm) with little space (<20% fit)
-      //    c) Any section with extremely little space (<15% fit) and available space < 40mm
+      // Always start a new page if the section won't fit completely on the current page
+      // Only exception: if we're at the very top of a page (just started)
       const isAtTopOfPage = y <= margin + 40
-      const isVeryLargeSection = estimatedSectionHeight > 80 && wouldFitPercentage < 0.25
-      const isMediumSectionWithLittleSpace = estimatedSectionHeight > 50 && wouldFitPercentage < 0.2
-      const isAnyContentWithTinySpace = wouldFitPercentage < 0.15 && availableSpace < 40
+      const sectionWontFit = estimatedSectionHeight > availableSpace - 10 // Leave 10mm buffer
 
-      const shouldBreakPage =
-        !isAtTopOfPage && (isVeryLargeSection || isMediumSectionWithLittleSpace || isAnyContentWithTinySpace)
-
-      if (shouldBreakPage) {
+      if (!isAtTopOfPage && sectionWontFit) {
         console.log(
-          `Section "${section.heading}" estimated height: ${estimatedSectionHeight}mm, available space: ${availableSpace}mm, fit percentage: ${(wouldFitPercentage * 100).toFixed(1)}% - starting new page`,
+          `Section "${section.heading}" estimated height: ${estimatedSectionHeight}mm, available space: ${availableSpace}mm - starting new page to keep section together`,
         )
         doc.addPage()
         y = margin + 8
+      }
+
+      // If section is too large for any single page, we'll have to allow it to span
+      const maxSinglePageHeight = pageHeight - margin * 2 - 20 // Account for margins and spacing
+      if (estimatedSectionHeight > maxSinglePageHeight) {
+        console.log(
+          `Section "${section.heading}" is too large (${estimatedSectionHeight}mm) for a single page - allowing it to span pages`,
+        )
       }
 
       const startY = y
